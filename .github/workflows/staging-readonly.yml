@@ -1,0 +1,18 @@
+name: Isolated staging D1 safety checks
+on:
+  push:
+    branches:
+      - feature/staging-d1-readonly-integration-20261028
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test

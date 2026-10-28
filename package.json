@@ -1,9 +1,9 @@
 {
   "name": "treasure-hunt-2d",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
-  "description": "Offline 2D game with isolated, disabled-by-default competition scoring engine",
+  "description": "Offline game with isolated staging D1 and a disabled read-only Worker",
   "scripts": {
-    "test": "node smoke.test.cjs && node --test tests/online.test.mjs tests/run-store.test.mjs"
+    "test": "node smoke.test.cjs && node --test tests/online.test.mjs tests/run-store.test.mjs tests/staging.test.mjs"
   }
 }
