@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#102a2e"/><title>Treasure Hunt 2D — Google Login Staging</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#23604f,#091c24 74%);color:#ebf9eb;font-family:system-ui,"Noto Sans Thai",sans-serif;min-height:100dvh;display:grid;place-items:center;padding:18px}
+main{width:min(100%,480px);background:#123239;border:1px solid #477d71;border-radius:20px;padding:23px;box-shadow:0 16px 50px #05151788}
+h1{font-size:clamp(22px,6vw,30px);margin:6px 0;color:#ffd36e}h2{font-size:16px;margin:18px 0 7px}.tag{display:inline-block;color:#ffe2a0;background:#54452e;border-radius:22px;padding:5px 11px;font-size:12px}
+p{line-height:1.6;font-size:14px;color:#c3dbd2}.status{padding:12px;border-radius:12px;border:1px solid #4e7673;background:#0c272d;min-height:49px;line-height:1.5;font-size:14px}
+button,a.link{display:block;width:100%;padding:13px;border-radius:11px;text-align:center;margin-top:10px;font:700 15px system-ui;border:1px solid #78d6ae;background:#24896c;color:#fff;text-decoration:none}
+button:disabled{opacity:.43;cursor:not-allowed}button.alt,a.link{background:#1b4b51;border-color:#547b7e}
+.note{border-top:1px solid #406265;margin-top:17px;padding-top:8px;font-size:12px;color:#aac6be}
+</style></head>
+<body><main>
+  <span class="tag">Staging Preview • ยังไม่ใช่ Production</span>
+  <h1>Treasure Hunt 2D</h1>
+  <p>ทดสอบการเข้าสู่ระบบ Google สำหรับเกมใหม่ โดยแยกบัญชีจาก GPT-VOXEL-3D</p>
+  <h2>สถานะ Firebase</h2>
+  <div id="config-status" class="status" role="status">กำลังตรวจการตั้งค่า…</div>
+  <h2>สถานะบัญชี</h2>
+  <div id="login-status" class="status" role="status" aria-live="polite">ยังไม่ได้เข้าสู่ระบบ</div>
+  <button id="google-login" type="button" disabled>เข้าสู่ระบบด้วย Google</button>
+  <button id="verify-api" type="button" class="alt" disabled>ตรวจสอบบัญชีกับ Staging API</button>
+  <button id="google-logout" type="button" class="alt" disabled>ออกจากระบบ</button>
+  <a class="link" href="../index.html">กลับไปยังเกม V1</a>
+  <p class="note">หน้านี้ยังไม่ปลดล็อกเกมออนไลน์ ไม่บันทึกคะแนน ไม่ซื้อสินค้า และไม่ให้สิทธิ์ VIP • ไม่แสดงหรือเก็บ ID Token ในหน้าจอ • Google Login ต้องตั้งค่า Firebase ใหม่ก่อน</p>
+</main><script type="module" src="./login.mjs"></script>
+</body></html>

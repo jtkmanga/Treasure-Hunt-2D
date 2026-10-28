@@ -1,0 +1,7 @@
+# Firebase web config is deployed only after the owner provisions an independent Firebase project.
+# Keep private service credentials out of this public repository.
+firebase-config.json
+**/*service-account*.json
+**/firebase-admin*.json
+.env
+.env.*
