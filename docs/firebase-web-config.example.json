@@ -1,0 +1,7 @@
+{
+  "apiKey": "REPLACE_WITH_FIREBASE_WEB_API_KEY",
+  "authDomain": "REPLACE_WITH_2D_PROJECT.firebaseapp.com",
+  "projectId": "REPLACE_WITH_2D_PROJECT",
+  "appId": "REPLACE_WITH_FIREBASE_WEB_APP_ID",
+  "messagingSenderId": "REPLACE_WITH_SENDER_ID"
+}
