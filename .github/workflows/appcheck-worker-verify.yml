@@ -1,0 +1,31 @@
+name: 2D App Check backend tests and mobile ZIP
+on:
+  push:
+    branches: [feature/appcheck-worker-readonly-20261028]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test-and-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+      - name: Package only public client files
+        shell: bash
+        run: |
+          mkdir -p preview/login preview/src/client
+          cp index.html preview/index.html
+          cp login/index.html login/login.mjs preview/login/
+          cp src/client/firebase-login-core.mjs src/client/appcheck-prep.mjs preview/src/client/
+          test "$(find preview -type f | wc -l)" -eq 5
+          ! find preview -type f | grep -E '(firebase-config|service-account|private-key)'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: treasure-hunt-2d-appcheck-staging-verified
+          path: preview/
+          retention-days: 14
