@@ -51,11 +51,11 @@ test("rejects forged/mismatched token, failed backend and cross-user response",a
   await assert.rejects(verifyFirebaseUserWithApi(user,null,async()=>{called=true;}),/not been enabled/);
   assert.equal(called,false);
 });
-test("preview is disconnected by default and never contains copied 3D config",()=>{
+test("preview uses only the dedicated 2D verification worker and never contains old config",()=>{
   const page=readFileSync(new URL("../login/index.html",import.meta.url),"utf8");
   const module=readFileSync(new URL("../login/login.mjs",import.meta.url),"utf8");
   assert.match(page,/Google Login Staging/);
-  assert.match(module,/STAGING_API_ORIGIN=null/);
+  assert.match(module,/STAGING_API_ORIGIN="https:\/\/treasure-hunt-2d-staging-api\.hjinffv5426\.workers\.dev"/);
   assert.match(module,/firebase-config.json/);
   assert.match(module,/signInWithPopup/);
   assert.doesNotMatch(module,/localStorage|console\.log|getRedirectResult|ghp_/);
