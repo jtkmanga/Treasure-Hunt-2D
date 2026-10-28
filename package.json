@@ -1,8 +1,9 @@
 {
   "name": "treasure-hunt-2d",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
+  "description": "Treasure Hunt 2D with source-only revocation and App Check hardening",
   "scripts": {
-    "test": "node smoke.test.cjs && node --test tests/online.test.mjs tests/run-store.test.mjs tests/staging.test.mjs tests/firebase-client.test.mjs tests/firebase-paste.test.mjs tests/staging-verification.test.mjs"
+    "test": "node smoke.test.cjs && node --test tests/online.test.mjs tests/run-store.test.mjs tests/staging.test.mjs tests/firebase-client.test.mjs tests/firebase-paste.test.mjs tests/staging-verification.test.mjs tests/auth-hardening.test.mjs"
   }
 }
