@@ -40,11 +40,36 @@ export async function verifyAppCheckOnServer({instance,getToken,user,apiOrigin,f
     method:"GET",headers:{...appHeaders,Authorization:"Bearer "+idToken,Accept:"application/json"},
     credentials:"omit",cache:"no-store",redirect:"error",signal:AbortSignal.timeout(8000)
    });
- }catch{throw Error("Staging verification unavailable");}
- if(res?.status!==200)throw Error("Staging rejected attestation");
- let body;try{body=await res.json();}catch{throw Error("Invalid server result");}
+ }catch{throw Error("NETWORK_OR_CORS");}
+ if(res?.status!==200){
+   let body=null;
+   try{body=await res.json();}catch{}
+   const codes=new Set(["APP_CHECK_MISSING_OR_INVALID","APP_CHECK_REJECTED",
+     "APP_CHECK_KEYS_UNAVAILABLE","APP_CHECK_NOT_CONFIGURED","GOOGLE_RESPONSE_INVALID"]);
+   const code=codes.has(body?.code)?body.code:"HTTP_"+(Number.isInteger(res?.status)?res.status:"UNKNOWN");
+   throw Error(code);
+ }
+ let body;try{body=await res.json();}catch{throw Error("INVALID_RESPONSE");}
  if(body?.ok!==true||body?.signedIn!==true||body?.uid!==user.uid||
     body?.appCheckVerified!==true||body?.accountStatusVerified!==false||
     body?.scoreWrites!==false)throw Error("Attestation mismatch");
  return {verifiedByServer:true,accountStatusVerified:false,scoreWrites:false};
+}
+
+// Present only fixed non-sensitive statuses; never display JWTs or raw server JSON.
+export function explainAppCheckFailure(err){
+ const code=err?.message||"";
+ if(code==="APP_CHECK_MISSING_OR_INVALID")return "ไม่พบ App Check Token ที่ใช้ได้ (HTTP 401)";
+ if(code==="APP_CHECK_REJECTED")return "Cloudflare ปฏิเสธลายเซ็นหรือข้อมูล App Check (HTTP 401)";
+ if(code==="APP_CHECK_KEYS_UNAVAILABLE")return "Cloudflare ติดต่อ Firebase JWKS ไม่สำเร็จ (HTTP 503)";
+ if(code==="APP_CHECK_NOT_CONFIGURED")return "Cloudflare ยังไม่ตั้งค่า App Check ครบ (HTTP 503)";
+ if(code==="GOOGLE_RESPONSE_INVALID")return "ผลการตรวจ Google Login ฝั่ง Cloudflare ไม่ถูกต้อง (HTTP 503)";
+ if(code==="HTTP_401")return "Google ID Token ไม่ผ่านการตรวจ (HTTP 401)";
+ if(code==="HTTP_403")return "Origin ไม่ได้รับอนุญาต (HTTP 403)";
+ if(code==="HTTP_429")return "ติด Rate Limit ให้หยุดทดสอบชั่วคราว (HTTP 429)";
+ if(code==="HTTP_503")return "Cloudflare หรือ Firebase ยังไม่พร้อม (HTTP 503)";
+ if(code==="HTTP_500")return "Cloudflare ทำงานผิดพลาด (HTTP 500)";
+ if(code==="NETWORK_OR_CORS")return "เชื่อมต่อไม่ได้ อาจเกิดจาก CORS หรือเครือข่าย";
+ return "การตรวจ App Check ยังไม่ผ่าน ("+
+   (/^HTTP_[0-9]{3}$/.test(code)?code:"ไม่ทราบรหัส")+")";
 }

@@ -1,5 +1,5 @@
 import {validateFirebaseWebConfig,parseWebConfigSnippet,verifyFirebaseUserWithApi,safeAuthError} from "../src/client/firebase-login-core.mjs";
-import {validatePublicSiteKey,getAppCheckOnce,verifyAppCheckOnServer} from "../src/client/appcheck-prep.mjs";
+import {validatePublicSiteKey,getAppCheckOnce,verifyAppCheckOnServer,explainAppCheckFailure} from "../src/client/appcheck-prep.mjs";
 
 const $=id=>document.getElementById(id);
 const login=$("google-login"),verify=$("verify-api"),logout=$("google-logout");
@@ -109,8 +109,8 @@ serverCheck.addEventListener("click",async()=>{
   });
   if(result.verifiedByServer)
    setStatus(appcheckStatus,"App Check ผ่านการตรวจลายเซ็นโดย Cloudflare Staging • ยังไม่ตรวจบัญชีถูกเพิกถอน");
- }catch {
-  setStatus(appcheckStatus,"Staging ยังไม่ยืนยัน App Check • ตรวจการตั้งค่าและลองใหม่ภายหลัง");
+ }catch (error) {
+  setStatus(appcheckStatus,explainAppCheckFailure(error));
  }finally{busy=false;controls();}
 });
 login.addEventListener("click",async()=>{
