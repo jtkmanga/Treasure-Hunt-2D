@@ -1,10 +1,10 @@
 import {validateFirebaseWebConfig,parseWebConfigSnippet,verifyFirebaseUserWithApi,safeAuthError} from "../src/client/firebase-login-core.mjs";
-import {validatePublicSiteKey,getAppCheckOnce} from "../src/client/appcheck-prep.mjs";
+import {validatePublicSiteKey,getAppCheckOnce,verifyAppCheckOnServer} from "../src/client/appcheck-prep.mjs";
 
 const $=id=>document.getElementById(id);
 const login=$("google-login"),verify=$("verify-api"),logout=$("google-logout");
 const configStatus=$("config-status"),loginStatus=$("login-status"),setup=$("setup-panel"),input=$("config-input"),apply=$("apply-config");
-const siteKeyInput=$("site-key"),appcheckStatus=$("appcheck-status"),appcheckButton=$("test-appcheck");
+const siteKeyInput=$("site-key"),appcheckStatus=$("appcheck-status"),appcheckButton=$("test-appcheck"),serverCheck=$("verify-appcheck-server");
 // Set only AFTER verifying that the isolated API hostname is enabled and publicly testable.
 // Never use the GPT-VOXEL-3D Worker URL here.
 const STAGING_API_ORIGIN="https://treasure-hunt-2d-staging-api.hjinffv5426.workers.dev";
@@ -16,6 +16,7 @@ function controls(){
   logout.disabled=!firebaseAuth||busy||!currentUser;
   verify.disabled=!firebaseAuth||busy||!currentUser||!STAGING_API_ORIGIN;
   appcheckButton.disabled=!firebaseAuth||busy||!currentUser||!appCheckInstance;
+  serverCheck.disabled=!firebaseAuth||busy||!currentUser||!appCheckInstance;
 }
 
 async function initializeWithConfig(cfg) {
@@ -96,6 +97,21 @@ appcheckButton.addEventListener("click",async()=>{
   }catch{
     setStatus(appcheckStatus,"App Check ไม่ผ่าน กรุณาตรวจ Site Key/โดเมนและโควตาฟรี");
   }finally{busy=false;controls();}
+});
+serverCheck.addEventListener("click",async()=>{
+ if(!currentUser||busy||!appCheckInstance||!appCheckSDK)return;
+ busy=true;controls();
+ setStatus(appcheckStatus,"กำลังให้ Cloudflare ตรวจ App Check…");
+ try {
+  const result=await verifyAppCheckOnServer({
+   instance:appCheckInstance,getToken:appCheckSDK.getToken,user:currentUser,
+   apiOrigin:STAGING_API_ORIGIN
+  });
+  if(result.verifiedByServer)
+   setStatus(appcheckStatus,"App Check ผ่านการตรวจลายเซ็นโดย Cloudflare Staging • ยังไม่ตรวจบัญชีถูกเพิกถอน");
+ }catch {
+  setStatus(appcheckStatus,"Staging ยังไม่ยืนยัน App Check • ตรวจการตั้งค่าและลองใหม่ภายหลัง");
+ }finally{busy=false;controls();}
 });
 login.addEventListener("click",async()=>{
   if(!firebaseAuth||busy)return;busy=true;controls();
