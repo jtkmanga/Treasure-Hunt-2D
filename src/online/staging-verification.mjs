@@ -10,10 +10,12 @@ export async function checkStagingLogin(request,env={},testOptions={}){
    return send("Origin not allowed",403);
  const cors={"access-control-allow-origin":origin,"vary":"Origin",
  "access-control-allow-methods":"GET, OPTIONS",
- "access-control-allow-headers":"authorization, content-type","access-control-max-age":"120"};
+ "access-control-allow-headers":"authorization, content-type, x-firebase-appcheck","access-control-max-age":"120"};
  if(request.method==="OPTIONS"){
    if(request.headers.get("access-control-request-method")!=="GET")return send("Method not allowed",405,cors);
-   if(!/^(authorization|content-type)(\s*,\s*(authorization|content-type))?$/i.test(request.headers.get("access-control-request-headers")||""))
+   const requested=(request.headers.get("access-control-request-headers")||"").toLowerCase().split(",").map(h=>h.trim()).filter(Boolean);
+   const allowedHeaders=new Set(["authorization","content-type","x-firebase-appcheck"]);
+   if(!(requested.every(h=>allowedHeaders.has(h)) && new Set(requested).size===requested.length) || !requested.includes("authorization") || requested.length>3)
      return send("Headers not allowed",403,cors);
    return new Response(null,{status:204,headers:cors});
  }
