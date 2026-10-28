@@ -1,0 +1,26 @@
+name: Treasure Hunt 2D smoke
+on:
+  push:
+    paths:
+      - 'index.html'
+      - 'smoke.test.cjs'
+      - 'package.json'
+      - '.github/workflows/smoke.yml'
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'smoke.test.cjs'
+      - 'package.json'
+      - '.github/workflows/smoke.yml'
+permissions:
+  contents: read
+jobs:
+  offline-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
