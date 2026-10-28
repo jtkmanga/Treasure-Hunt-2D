@@ -10,8 +10,8 @@ const config={
   appId:"1:439998873632:web:4b694f8159d9d9e0163c45"
 };
 test("parse pasted Firebase Console JavaScript as inert text",()=>{
-  const snippet='const firebaseConfig = {\\n'+Object.entries(config).map(([k,v])=>k+': "'+v+'"').join(",\\n")
-    +',\\nstorageBucket: "ignored.appspot.com", measurementId: "G-IGNORED"\\n};';
+  const snippet='const firebaseConfig = {\n'+Object.entries(config).map(([k,v])=>k+': "'+v+'"').join(",\n")
+    +',\nstorageBucket: "ignored.appspot.com", measurementId: "G-IGNORED"\n};';
   assert.deepEqual(parseWebConfigSnippet(snippet),config);
   assert.deepEqual(parseWebConfigSnippet(JSON.stringify(config)),config);
 });
