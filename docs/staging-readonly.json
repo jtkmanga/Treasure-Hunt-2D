@@ -1,0 +1,16 @@
+{
+  "name": "treasure-hunt-2d-staging-api",
+  "main": "src/online/handler.mjs",
+  "compatibility_date": "2026-10-28",
+  "workers_dev": false,
+  "vars": {
+    "ALLOWED_ORIGIN": "https://treasure-hunt-2d-jtk.pages.dev"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "treasure-hunt-2d-staging",
+      "database_id": "389254ad-4f44-4076-b028-0ef5fa8e41cd"
+    }
+  ]
+}
