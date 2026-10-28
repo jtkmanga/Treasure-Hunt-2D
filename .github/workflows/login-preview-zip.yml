@@ -1,0 +1,33 @@
+name: Package 2D login preview ZIP for manual Pages upload
+on:
+  push:
+    branches: [feature/firebase-mobile-paste-preview-20261028]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate all offline/auth tests
+        run: npm test
+      - name: Prepare single static artifact with no backend or secrets
+        shell: bash
+        run: |
+          mkdir -p site/login site/src/client
+          cp index.html site/index.html
+          cp login/index.html login/login.mjs site/login/
+          cp src/client/firebase-login-core.mjs site/src/client/
+          test "$(find site -type f | wc -l)" -eq 4
+          ! find site -type f | grep -E '(firebase-config|service-account|\.env)'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: treasure-hunt-2d-login-preview
+          path: site/
+          retention-days: 14
+          if-no-files-found: error
