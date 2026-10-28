@@ -1,0 +1,34 @@
+name: Package 2D App Check one-tap preview
+on:
+  push:
+    branches: [feature/appcheck-mobile-manual-trial-20261028]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tested-preview-zip:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check all existing and App Check tests
+        run: npm test
+      - name: Restrict artifact to static public files
+        shell: bash
+        run: |
+          mkdir -p preview/login preview/src/client
+          cp index.html preview/index.html
+          cp login/index.html login/login.mjs preview/login/
+          cp src/client/firebase-login-core.mjs src/client/appcheck-prep.mjs preview/src/client/
+          test "$(find preview -type f | wc -l)" -eq 5
+          ! find preview -type f | grep -E '(firebase-config|service-account|\.env|private-key)'
+          grep -q 'isTokenAutoRefreshEnabled:false' preview/login/login.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: treasure-hunt-2d-appcheck-on-demand
+          path: preview/
+          retention-days: 14
+          if-no-files-found: error
