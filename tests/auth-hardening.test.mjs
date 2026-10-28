@@ -114,7 +114,7 @@ test("hardened gateway verifies all three phases before confirming read-only ide
       assert.deepEqual(conf,APP_CFG);return {appId:APP_ID};},
     verifyAccount:async(t,user,conf)=>{sequence.push("active");
       assert.equal(user.uid,identity.uid);
-      assert.deepEqual(conf,accountCfg);return {active:true};}
+      assert.deepEqual(conf,accountCfg);return {active:true,uid:identity.uid};}
   });
   assert.equal(reply.status,200);
   assert.deepEqual(await reply.json(),{ok:true,signedIn:true,uid:identity.uid,scoreWrites:false});
