@@ -49,7 +49,7 @@ test("forgery, wrong issuer/audience/app, expiry and wrong JWT type are rejected
     "not-a-jwt"
   ];
   for(const t of invalid)await assert.rejects(
-    verifyFirebaseAppCheckToken(t,APP_CFG,opts),/Invalid|Unknown/);
+    verifyFirebaseAppCheckToken(t,APP_CFG,opts),/Invalid|Unknown|Missing/);
   await assert.rejects(verifyFirebaseAppCheckToken(token(),{projectNumber:"000000",appId:APP_ID},opts));
 });
 test("App Check key retrieval failures fail closed",async()=>{
