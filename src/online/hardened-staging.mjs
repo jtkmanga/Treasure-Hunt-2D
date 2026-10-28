@@ -17,10 +17,12 @@ export async function checkHardenedStagingLogin(request,env={},options={}){
    const identity=await (options.verifyToken??verifyFirebaseIdToken)(token,projectId);
    if(!identity||typeof identity.uid!=="string"||!identity.uid)throw Error("Invalid identity");
    const attestation=request.headers.get("x-firebase-appcheck");
-   await (options.verifyAppCheck??verifyFirebaseAppCheckToken)(attestation,{
+   const app=await (options.verifyAppCheck??verifyFirebaseAppCheckToken)(attestation,{
      projectNumber:env.FIREBASE_PROJECT_NUMBER,appId:env.FIREBASE_APP_ID});
-   await (options.verifyAccount??verifyFirebaseAccountIsActive)(token,identity,{
+   if(app?.appId!==env.FIREBASE_APP_ID)throw Error("App Check identity mismatch");
+   const active=await (options.verifyAccount??verifyFirebaseAccountIsActive)(token,identity,{
      apiKey:env.FIREBASE_WEB_API_KEY,projectId});
+   if(active?.active!==true||active?.uid!==identity.uid)throw Error("Account not active");
    return identity;
   }
  });
