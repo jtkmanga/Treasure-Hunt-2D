@@ -31,6 +31,8 @@ textarea{width:100%;min-height:126px;resize:vertical;margin-top:8px;border:1px s
 <h2>App Check — ทดสอบจากมือถือเท่านั้น</h2>
 <div id="appcheck-status" class="status" role="status" aria-live="polite">ยังไม่เริ่มทดสอบ App Check</div>
 <button id="test-appcheck" type="button" class="alt" disabled>ทดสอบ App Check หนึ่งครั้ง</button>
+<button id="verify-appcheck-server" type="button" class="alt" disabled>ยืนยัน App Check กับ Staging API</button>
+<p class="note">ปุ่มแรกทดสอบขอ Token บนมือถือ ปุ่มที่สองส่ง Token ไปตรวจลายเซ็นกับ Cloudflare โดยไม่บันทึก Token ลงหน้าเว็บ</p>
 <p>ระบบจะขอ Token เฉพาะตอนกดปุ่ม และใช้ Token ที่ยังไม่หมดอายุจากแคชหากมีอยู่ ผลสำเร็จยังไม่หมายความว่า Worker ได้ตรวจ App Check Token แล้ว</p>
   <button id="google-logout" type="button" class="alt" disabled>ออกจากระบบ</button>
   <a class="link" href="../index.html">กลับไปยังเกม V1</a>
