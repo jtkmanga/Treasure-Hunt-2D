@@ -63,3 +63,19 @@ export function safeAuthError(error) {
   if(code==="auth/network-request-failed")return "เชื่อมต่อ Firebase ไม่สำเร็จ โปรดลองใหม่";
   return "Google Login ยังไม่พร้อมใช้งาน โปรดตรวจการตั้งค่า Firebase";
 }
+
+// Accept pasted Firebase WEB SDK config snippets without executing JavaScript.
+// Supports the Firebase Console's const firebaseConfig = { apiKey: "...", ... } format.
+// Optional storageBucket / measurementId are intentionally discarded.
+export function parseWebConfigSnippet(source) {
+  if (typeof source!=="string" || source.length>4096) throw Error("Invalid web SDK config text");
+  const fields=["apiKey","authDomain","projectId","appId","messagingSenderId"];
+  const config={};
+  for(const key of fields){
+    const pattern=new RegExp("(?:^|[,{\\s])['\\\"]?"+key+"['\\\"]?\\s*:\\s*(['\\\"])([^'\\\"\\r\\n]+)\\1","g");
+    const matches=[...source.matchAll(pattern)];
+    if(matches.length!==1)throw Error("Incomplete Firebase Web config");
+    config[key]=matches[0][2];
+  }
+  return validateFirebaseWebConfig(config);
+}

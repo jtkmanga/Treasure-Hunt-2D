@@ -4,7 +4,8 @@
   "compatibility_date": "2026-10-28",
   "workers_dev": false,
   "vars": {
-    "ALLOWED_ORIGIN": "https://treasure-hunt-2d-jtk.pages.dev"
+    "ALLOWED_ORIGIN": "https://treasure-hunt-2d-jtk.pages.dev",
+    "FIREBASE_PROJECT_ID": "treasure-hunt-2d"
   },
   "d1_databases": [
     {
