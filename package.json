@@ -1,9 +1,9 @@
 {
   "name": "treasure-hunt-2d",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Offline mobile Treasure Hunt 2D HTML5 prototype",
+  "description": "Offline game plus isolated read-only online backend foundation",
   "scripts": {
-    "test": "node smoke.test.cjs"
+    "test": "node smoke.test.cjs && node --test tests/online.test.mjs"
   }
 }

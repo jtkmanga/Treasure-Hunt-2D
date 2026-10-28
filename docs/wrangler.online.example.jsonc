@@ -1,0 +1,16 @@
+{
+  // TEMPLATE ONLY - no deployments until an isolated Firebase project and D1 database are configured.
+  "name": "treasure-hunt-2d-api-staging",
+  "main": "src/online/handler.mjs",
+  "compatibility_date": "2026-10-28",
+  "workers_dev": true,
+  "vars": {
+    "FIREBASE_PROJECT_ID": "REPLACE_WITH_2D_FIREBASE_PROJECT",
+    "ALLOWED_ORIGIN": "https://treasure-hunt-2d-jtk.pages.dev"
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "treasure-hunt-2d-staging",
+    "database_id": "REPLACE_WITH_ISOLATED_D1_DATABASE_ID"
+  }]
+}
