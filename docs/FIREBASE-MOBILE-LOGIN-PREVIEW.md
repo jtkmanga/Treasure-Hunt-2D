@@ -19,3 +19,5 @@ In the Firebase Console, Project settings → General → Your apps → Web App 
 The staging API domain is *still disabled* and the check-against-Worker button is intentionally unavailable. No scores, purchases, VIP, or payment endpoints were activated.
 
 If the mobile sign-in fails, capture only the safe error UI (no tokens or service credentials). For browser privacy, avoid pasting Firebase private service-account JSON (different from public web config).
+
+Cloudflare Staging Worker now has the public `FIREBASE_PROJECT_ID=treasure-hunt-2d` text binding. Its workers.dev URL is still disabled, and no real ID tokens have been sent to it.

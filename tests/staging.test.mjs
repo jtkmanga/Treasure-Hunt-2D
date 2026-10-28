@@ -7,7 +7,7 @@ test("staging configuration is intentionally private and independent",()=>{
  assert.equal(config.workers_dev,false);
  assert.equal(config.name,"treasure-hunt-2d-staging-api");
  assert.equal(config.main,"src/online/handler.mjs");
- assert.equal(config.vars.FIREBASE_PROJECT_ID,undefined);
+ assert.equal(config.vars.FIREBASE_PROJECT_ID,"treasure-hunt-2d");
  assert.equal(config.vars.ALLOWED_ORIGIN,"https://treasure-hunt-2d-jtk.pages.dev");
  assert.equal(config.d1_databases.length,1);
  assert.equal(config.d1_databases[0].binding,"DB");
