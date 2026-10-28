@@ -1,0 +1,38 @@
+name: Cloudflare Pages upload ZIP (offline prototype)
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'smoke.test.cjs'
+      - '.github/workflows/package-pages.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package-static-preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out Treasure Hunt 2D
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run offline smoke checks before packaging
+        run: node smoke.test.cjs
+      - name: Prepare static site root
+        shell: bash
+        run: |
+          mkdir -p site
+          cp index.html site/index.html
+          test -s site/index.html
+          test "$(find site -type f | wc -l)" -eq 1
+      - name: Upload the Pages-ready ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: treasure-hunt-2d-pages-upload
+          path: site/
+          if-no-files-found: error
+          retention-days: 14
