@@ -7,7 +7,7 @@ main{width:min(100%,480px);background:#123239;border:1px solid #477d71;border-ra
 h1{font-size:clamp(22px,6vw,30px);margin:6px 0;color:#ffd36e}h2{font-size:16px;margin:18px 0 7px}.tag{display:inline-block;color:#ffe2a0;background:#54452e;border-radius:22px;padding:5px 11px;font-size:12px}
 p{line-height:1.6;font-size:14px;color:#c3dbd2}.status{padding:12px;border-radius:12px;border:1px solid #4e7673;background:#0c272d;min-height:49px;line-height:1.5;font-size:14px}
 button,a.link{display:block;width:100%;padding:13px;border-radius:11px;text-align:center;margin-top:10px;font:700 15px system-ui;border:1px solid #78d6ae;background:#24896c;color:#fff;text-decoration:none}
-textarea{width:100%;min-height:126px;resize:vertical;margin-top:8px;border:1px solid #658b82;border-radius:10px;background:#0b252c;color:#eaf8eb;padding:12px;font:12px/1.55 ui-monospace,monospace}button:disabled{opacity:.43;cursor:not-allowed}button.alt,a.link{background:#1b4b51;border-color:#547b7e}
+textarea{width:100%;min-height:126px;resize:vertical;margin-top:8px;border:1px solid #658b82;border-radius:10px;background:#0b252c;color:#eaf8eb;padding:12px;font:12px/1.55 ui-monospace,monospace}input.sitekey{width:100%;margin-top:8px;padding:12px;background:#0b252c;color:#eaf8eb;border:1px solid #658b82;border-radius:10px;font-size:14px}button:disabled{opacity:.43;cursor:not-allowed}button.alt,a.link{background:#1b4b51;border-color:#547b7e}
 .note{border-top:1px solid #406265;margin-top:17px;padding-top:8px;font-size:12px;color:#aac6be}
 </style></head>
 <body><main>
@@ -19,14 +19,21 @@ textarea{width:100%;min-height:126px;resize:vertical;margin-top:8px;border:1px s
   <section id="setup-panel"><h2>ตั้งค่า Web App สำหรับทดสอบ</h2>
 <p>กด Copy ที่ Firebase Project settings → Your apps → SDK setup (Config) แล้ววางโค้ด <code>firebaseConfig</code> ด้านล่าง ระบบอ่านเฉพาะข้อมูลเว็บที่จำเป็น โดยไม่รันโค้ดและไม่ส่งข้อมูลไปเซิร์ฟเวอร์</p>
 <textarea id="config-input" placeholder='const firebaseConfig = { apiKey: "AIza...", authDomain: "treasure-hunt-2d.firebaseapp.com", projectId: "treasure-hunt-2d", messagingSenderId: "...", appId: "..." };' spellcheck="false" autocomplete="off" aria-label="วาง Firebase Web SDK Config"></textarea>
+<h2>App Check (ไม่บังคับในขั้นทดลอง)</h2>
+<p>หลังจากลงทะเบียน Fraud Defense ใน Firebase แล้ว ให้นำ <strong>Site Key แบบสาธารณะ</strong> จาก Google Cloud มาวางด้านล่างก่อนกดใช้ Firebase Config ระบบจะไม่บันทึกคีย์ลง GitHub และไม่รีเฟรช Token อัตโนมัติ</p>
+<input id="site-key" class="sitekey" type="text" placeholder="วาง reCAPTCHA Enterprise Site Key (ไม่ใช่ Secret Key)" autocomplete="off" spellcheck="false" aria-label="Site Key ของ reCAPTCHA Enterprise"/>
 <button id="apply-config" type="button" class="alt">ใช้ Firebase Web Config ที่วาง</button>
 <p class="note">ใช้เฉพาะ Web SDK Config เท่านั้น ห้ามวาง Service Account, Private Key, API Token หรือข้อมูลการชำระเงิน</p></section>
 <h2>สถานะบัญชี</h2>
   <div id="login-status" class="status" role="status" aria-live="polite">ยังไม่ได้เข้าสู่ระบบ</div>
   <button id="google-login" type="button" disabled>เข้าสู่ระบบด้วย Google</button>
   <button id="verify-api" type="button" class="alt" disabled>ตรวจสอบบัญชีกับ Staging API</button>
+<h2>App Check — ทดสอบจากมือถือเท่านั้น</h2>
+<div id="appcheck-status" class="status" role="status" aria-live="polite">ยังไม่เริ่มทดสอบ App Check</div>
+<button id="test-appcheck" type="button" class="alt" disabled>ทดสอบ App Check หนึ่งครั้ง</button>
+<p>ระบบจะขอ Token เฉพาะตอนกดปุ่ม และใช้ Token ที่ยังไม่หมดอายุจากแคชหากมีอยู่ ผลสำเร็จยังไม่หมายความว่า Worker ได้ตรวจ App Check Token แล้ว</p>
   <button id="google-logout" type="button" class="alt" disabled>ออกจากระบบ</button>
   <a class="link" href="../index.html">กลับไปยังเกม V1</a>
-  <p class="note">หน้านี้ยังไม่ปลดล็อกเกมออนไลน์ ไม่บันทึกคะแนน ไม่ซื้อสินค้า และไม่ให้สิทธิ์ VIP • ไม่แสดงหรือเก็บ ID Token ในหน้าจอ • Google Login ต้องตั้งค่า Firebase ใหม่ก่อน</p>
+  <p class="note">หน้านี้ยังไม่ปลดล็อกเกมออนไลน์ ไม่บันทึกคะแนน ไม่ซื้อสินค้า และไม่ให้สิทธิ์ VIP • ไม่แสดงหรือเก็บ ID Token ในหน้าจอ • App Check SDK ปิดรีเฟรชอัตโนมัติ • ยังไม่เปิด Enforcement หรือบันทึกคะแนนแข่งขัน</p>
 </main><script type="module" src="./login.mjs"></script>
 </body></html>
