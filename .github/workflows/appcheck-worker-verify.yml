@@ -15,6 +15,24 @@ jobs:
         with:
           node-version: '22'
       - run: npm test
+      - name: Limited live Staging negative HTTP checks (no user tokens)
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://treasure-hunt-2d-staging-api.hjinffv5426.workers.dev"
+          ORIGIN="https://treasure-hunt-2d-jtk.pages.dev"
+          status=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$BASE/api/v1/appcheck-verify")
+          echo "No Origin HTTP $status"
+          test "$status" = "403"
+          status=$(curl -sS --max-time 15 -H "Origin: $ORIGIN" -o /dev/null -w '%{http_code}' "$BASE/api/v1/appcheck-verify")
+          echo "No login HTTP $status"
+          test "$status" = "401"
+          status=$(curl -sS --max-time 15 -H "Origin: $ORIGIN" -o /dev/null -w '%{http_code}' "$BASE/api/v1/score")
+          echo "Score endpoint HTTP $status"
+          test "$status" = "404"
+          status=$(curl -sS --max-time 15 -X OPTIONS -H "Origin: $ORIGIN" -H 'Access-Control-Request-Method: GET' -H 'Access-Control-Request-Headers: authorization,x-firebase-appcheck' -o /dev/null -w '%{http_code}' "$BASE/api/v1/appcheck-verify")
+          echo "Preflight HTTP $status"
+          test "$status" = "204"
       - name: Package only public client files
         shell: bash
         run: |
