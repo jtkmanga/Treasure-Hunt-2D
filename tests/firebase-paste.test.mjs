@@ -26,13 +26,13 @@ test("missing keys / duplicate keys / overlarge input are rejected",()=>{
   assert.throws(()=>parseWebConfigSnippet(JSON.stringify(config).replace('"projectId":"treasure-hunt-2d"','"projectId":"treasure-hunt-2d","projectId":"wrong"')));
   assert.throws(()=>parseWebConfigSnippet("X".repeat(5000)));
 });
-test("login preview offers manual mobile setup but does not send tokens automatically",()=>{
+test("login preview offers manual mobile setup and only verifies when clicked",()=>{
   const html=readFileSync(new URL("../login/index.html",import.meta.url),"utf8");
   const js=readFileSync(new URL("../login/login.mjs",import.meta.url),"utf8");
   assert.match(html,/id="config-input"/);
   assert.match(js,/parseWebConfigSnippet/);
   assert.match(js,/cfg.projectId!=="treasure-hunt-2d"/);
-  assert.match(js,/STAGING_API_ORIGIN=null/);
+  assert.match(js,/STAGING_API_ORIGIN="https:\/\/treasure-hunt-2d-staging-api\.hjinffv5426\.workers\.dev"/);
   assert.match(js,/browserSessionPersistence/);
   assert.doesNotMatch(js,/eval\(|localStorage|console\.log/);
 });

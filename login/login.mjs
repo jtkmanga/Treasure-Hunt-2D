@@ -5,7 +5,7 @@ const login=$("google-login"),verify=$("verify-api"),logout=$("google-logout");
 const configStatus=$("config-status"),loginStatus=$("login-status"),setup=$("setup-panel"),input=$("config-input"),apply=$("apply-config");
 // Set only AFTER verifying that the isolated API hostname is enabled and publicly testable.
 // Never use the GPT-VOXEL-3D Worker URL here.
-const STAGING_API_ORIGIN=null;
+const STAGING_API_ORIGIN="https://treasure-hunt-2d-staging-api.hjinffv5426.workers.dev";
 let firebaseAuth, authSDK, currentUser, busy=false;
 function setStatus(target,message){target.textContent=message;}
 function controls(){

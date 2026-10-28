@@ -1,0 +1,37 @@
+name: Package limited Google Login verification preview
+on:
+  push:
+    branches: [feature/mobile-live-auth-verification-20261028]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verified-login-preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run all offline and staging gate unit tests
+        run: npm test
+      - name: Verify static preview contains only 2D API address
+        run: |
+          grep -F 'https://treasure-hunt-2d-staging-api.hjinffv5426.workers.dev' login/login.mjs
+          ! grep -F 'STAGING_API_ORIGIN=null' login/login.mjs
+      - name: Package only static files (no credentials)
+        shell: bash
+        run: |
+          mkdir -p preview/login preview/src/client
+          cp index.html preview/index.html
+          cp login/index.html login/login.mjs preview/login/
+          cp src/client/firebase-login-core.mjs preview/src/client/
+          test "$(find preview -type f | wc -l)" -eq 4
+          ! find preview -type f | grep -E '(firebase-config|service-account|\.env)'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: treasure-hunt-2d-staging-auth-check
+          path: preview/
+          retention-days: 14
+          if-no-files-found: error
