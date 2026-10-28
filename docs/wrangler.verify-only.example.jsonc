@@ -1,0 +1,10 @@
+{
+ "name":"treasure-hunt-2d-staging-api",
+ "main":"src/online/staging-verification.mjs",
+ "compatibility_date":"2026-10-28",
+ "workers_dev":false,
+ "vars":{"FIREBASE_PROJECT_ID":"treasure-hunt-2d",
+   "ALLOWED_ORIGIN":"https://treasure-hunt-2d-jtk.pages.dev"},
+ "ratelimits":[{"name":"LOGIN_RATE_LIMITER","namespace_id":"750913",
+   "simple":{"limit":6,"period":60}}]
+}

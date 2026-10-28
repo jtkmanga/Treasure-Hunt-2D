@@ -1,0 +1,17 @@
+name: Limited staging verification gate checks
+on:
+  push:
+    branches: [feature/readonly-server-verification-gate-20261028]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
