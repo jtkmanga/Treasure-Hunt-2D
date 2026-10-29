@@ -15,7 +15,7 @@ function px(g,x,y,w,h,c){g.fillStyle=c;g.fillRect(Math.floor(x),Math.floor(y),Ma
 function poly(g,coords,color){g.fillStyle=color;g.beginPath();g.moveTo(coords[0],coords[1]);for(let i=2;i<coords.length;i+=2)g.lineTo(coords[i],coords[i+1]);g.closePath();g.fill();}
 function bloom(g,x,y,color="#e8ef8a"){px(g,x,y,3,3,color);px(g,x+1,y-2,1,7,"#ffffff9a");px(g,x-2,y+1,7,1,"#ffffff9a");}
 function grassTile(p,variant){return sprite(32,32,g=>{
- const k=variant%4;px(g,0,0,32,32,p.grass[k]);
+ const k=variant%4;px(g,0,0,32,32,p.grass[1]);
  for(let j=0;j<5;j++){
   const n=hash(j,variant,29),x=n%27,y=(n>>>6)%27;
   px(g,x,y,4+(n%5),2+(n>>>8)%5,p.grass[(k+1+n%3)%4]);
@@ -32,22 +32,43 @@ function grassTile(p,variant){return sprite(32,32,g=>{
  if(variant%9===0){px(g,23,13,2,2,"#c4b99a");px(g,24,12,2,2,"#d3c5a0");}
 });}
 function pathTile(p,variant){return sprite(32,32,g=>{
+ // Irregular broken dirt, grass encroaching on the trail at the edges.
  g.drawImage(grassTile(p,variant),0,0);
- px(g,0,4,32,25,p.path[0]);
- for(let y=4;y<29;y+=3)for(let x=0;x<32;x+=4){
-  const n=hash(x,y,variant);
-  px(g,x+(n%2),y,(n%5)+1,1,p.path[1+(n%3)]);
+ const n0=hash(variant,22,70);
+ for(let y=0;y<32;y+=2){
+  const center=15+Math.floor(Math.sin(y*.27+variant*.7)*2);
+  const width=10+hash(y,variant,75)%4;
+  const left=center-width;
+  px(g,left,y,width*2,2,p.path[1+(hash(y,variant,13)%2)]);
+  for(let i=0;i<7;i++){
+   const n=hash(i+y*17,variant,33),x=left+n%(width*2);
+   px(g,x,y,1+n%4,1,p.path[(n>>>6)%4]);
+  }
+  if(y%4===0){
+   px(g,left-3,y+1,4,2,p.grass[variant%3]);
+   px(g,left+width*2-2,y,4,3,p.grass[(variant+1)%3]);
+  }
  }
- for(let x=0;x<32;x+=5){const n=hash(x,variant,88);px(g,x,3+n%3,3,2,p.grass[n%4]);px(g,x,27+n%3,4,2,p.grass[(n>>>3)%4]);}
+ for(let i=0;i<13;i++){
+  const v=hash(i,variant,88),x=4+v%25,y=3+(v>>>6)%26;
+  px(g,x,y,1+v%3,1,p.path[(v>>>10)%4]);
+ }
 });}
 function waterTile(p,variant){return sprite(32,32,g=>{
  px(g,0,0,32,32,p.water[0]);
- for(let i=0;i<32;i+=3){
-  const n=hash(i,variant,5),x=n%32,y=(n>>>5)%32;
-  px(g,x,y,4+n%6,1,p.water[1+n%3]);
+ for(let y=0;y<32;y+=3){
+  const w=hash(y,variant,66);
+  px(g,(w%8),y,21+(w%7),2,p.water[(w>>>5)%3]);
+  px(g,(w>>>4)%24,y+1,4+(w>>>7)%7,1,p.water[2]);
  }
- px(g,2,2,10,1,p.water[2]);px(g,13,16,8,1,p.water[3]);
- if(variant%3===0){px(g,22,23,9,3,p.leaf[2]);px(g,24,21,5,2,p.leaf[4]);}
+ for(let i=0;i<8;i++){
+  const n=hash(i,variant,5),x=n%28,y=(n>>>5)%28;
+  px(g,x,y,3+n%3,1,p.water[3]);
+ }
+ if(variant%5===0){
+  px(g,9,14,11,3,p.leaf[1]);px(g,7,13,13,2,p.leaf[3]);
+  px(g,16,13,6,4,p.leaf[2]);
+ }
 });}
 function rockSprite(p,variant){return sprite(46,50,g=>{
  px(g,7,37,30,9,"#0b2924a0");
