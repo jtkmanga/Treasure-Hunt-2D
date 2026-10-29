@@ -1,0 +1,47 @@
+name: Forest V4 reference camera and rich pixel art - mobile ZIP
+on:
+  push:
+    branches: [feature/forest-reference-camera-art-v4-20261029]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  regression-and-zip:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Full offline and auth security regression
+        run: npm test
+      - name: Syntax-check all gameplay and scenery modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check ranked-preview/main.mjs
+          node --check ranked-preview/pixel-art.mjs
+          node --check ranked-preview/scenic-details.mjs
+          node --check src/online/run-engine.mjs
+      - name: Package original V1 + Login + upgraded landscape practice
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p site/ranked-preview site/login site/src/client
+          cp index.html site/index.html
+          cp login/index.html login/login.mjs site/login/
+          cp src/client/firebase-login-core.mjs src/client/appcheck-prep.mjs site/src/client/
+          cp ranked-preview/index.html ranked-preview/main.mjs ranked-preview/pixel-art.mjs ranked-preview/scenic-details.mjs site/ranked-preview/
+          cp src/online/run-engine.mjs site/ranked-preview/run-engine.mjs
+          cmp site/ranked-preview/run-engine.mjs src/online/run-engine.mjs
+          test "$(find site -type f | wc -l)" -eq 10
+          ! find site -type f | grep -E '(\.env|service-account|private-key|firebase-config)'
+          ! grep -E 'fetch\(|WebSocket|sendBeacon|localStorage' site/ranked-preview/main.mjs
+          ! grep -E 'fetch\(|WebSocket|sendBeacon|localStorage' site/ranked-preview/scenic-details.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Treasure-Hunt-2D-Forest-Reference-V4-Mobile
+          path: site/
+          retention-days: 14
+          if-no-files-found: error

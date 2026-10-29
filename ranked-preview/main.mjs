@@ -26,9 +26,21 @@ async function requestLandscape(){
  try{if(screen.orientation?.lock)await screen.orientation.lock("landscape");}catch{}
  layout();
 }
+let areaLevel=-1;
+function paintAreaThumbnail(){
+ const c=el("area-art");if(!c)return;
+ const g=c.getContext("2d");if(!g)return;
+ g.imageSmoothingEnabled=false;g.fillStyle="#286c4b";g.fillRect(0,0,c.width,c.height);
+ g.fillStyle="#4d8550";g.fillRect(1,1,68,68);
+ g.fillStyle="#8abf63";g.fillRect(12,49,49,14);
+ g.drawImage(art.tree[1],-7,-6,56,70);
+ g.drawImage(art.tree[3],25,-3,58,72);
+ g.fillStyle="#ffda6b";g.fillRect(28,54,5,7);
+}
 function updateHud(){
  el("score").textContent=String(session.score);el("coins").textContent=String(session.coinsCollected);
- el("level").textContent=LEVELS[level];el("region").textContent="พื้นที่ "+(level+1)+" · ฝึกเท่านั้น";
+ el("level").textContent="📍 "+LEVELS[level];el("region").textContent="พื้นที่ "+(level+1)+" · ป่าเริ่มต้น";
+ if(areaLevel!==level){areaLevel=level;paintAreaThumbnail();}
  const ms=running&&!paused?Math.max(0,Math.min(remainingMs,deadline-performance.now())):remainingMs;
  const s=Math.ceil(Math.max(0,ms)/1000);
  el("time").textContent=String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");

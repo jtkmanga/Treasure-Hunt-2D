@@ -5,7 +5,7 @@
 <meta name="theme-color" content="#071c20">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Treasure Hunt 2D — Fantasy Pixel Forest V3 (Landscape Practice)</title>
+<title>Treasure Hunt 2D — Forest Reference V4</title>
 <style>
 :root{color-scheme:dark;--gold:#ffe18c;--outline:#85e6cd;--ink:#061a1e}
 *{box-sizing:border-box}
@@ -77,17 +77,35 @@ select,.action{border:1px solid #9ecab8;background:#0c3c42;color:white;border-ra
 .collect{border-color:#fff6cb;background:linear-gradient(145deg,#fff5a7,#fbd468 56%,#bd7923);box-shadow:0 0 0 5px #866021af,0 9px 0 #6e461c,0 15px 27px #001d138c,inset 0 4px 8px #fff7d2}
 #game:after{content:"";position:absolute;inset:0;pointer-events:none;border:2px solid #05191a33;z-index:1}
 @media(max-width:680px){.area-icon{display:none}.area small{font-size:9px}.hud{gap:4px}.stat small,.time-pill small{font-size:9px}.icon-button{border-radius:13px}}
+
+/* Reference-look V4: large preview thumbnail, slimmer teal fantasy HUD, wide world view */
+.hud{gap:clamp(5px,.8vw,12px)}
+.panel,.icon-button{border:2px solid #b4e6dc;box-shadow:0 3px 0 #0b3736ab,0 5px 21px #001f25a6,inset 0 1px 0 #d1fff65f;background:linear-gradient(165deg,#07282ddf,#051f2ce9)}
+.area{border-color:#b7e5d9;max-width:480px;flex:1.55;gap:11px}
+.area-icon{width:clamp(50px,11vh,80px);height:clamp(48px,11vh,75px);padding:3px;border:1px solid #a8e4d7;border-radius:14px;background:#124638;overflow:hidden;flex:none}
+#area-art{width:100%;height:100%;display:block;image-rendering:pixelated}
+.area strong{color:#fff5d6}
+.stat{flex:.9;max-width:270px}
+.time-pill{flex:1.12;max-width:350px}
+.minimap{width:clamp(103px,13vw,207px);height:clamp(58px,20vh,172px);border-color:#b8f2e3;box-shadow:0 4px 16px #001a1caa;flex:none}
+#mini{border-radius:12px;background:#23544b}
+.practice-tag{border:1px solid #72988d;background:#05242ac8;box-shadow:0 2px 9px #001d21bb}
+.icon-button{color:#fff2c9;border-color:#b5e6da}
+.joy{border-color:#f8db8b}
+.collect{border-color:#fff1a6}
+@media(max-width:790px){.area-icon{display:none}.area{min-width:94px}.hud{gap:3px}.stat{min-width:57px}.minimap{width:clamp(68px,11vw,120px);height:clamp(49px,16vh,95px)}}
+@media(max-height:340px){.minimap{height:clamp(49px,20vh,75px)}.stat .symbol{font-size:18px}}
 </style>
 </head>
 <body>
 <div id="game">
 <canvas id="world" aria-label="ฉากเกม Pixel Forest เต็มหน้าจอ"></canvas><div class="vignette"></div>
 <div class="hud" aria-label="สถานะการแข่งขันโหมดฝึก">
- <div class="panel area"><div class="area-icon" aria-hidden="true">🌲</div><div><strong id="level">ป่าลึกลับ</strong><small id="region">พื้นที่ 1 · โหมดฝึก</small></div></div>
+ <div class="panel area"><div class="area-icon" aria-hidden="true"><canvas id="area-art" width="70" height="70"></canvas></div><div><strong id="level">📍 ป่าลึกลับ</strong><small id="region">พื้นที่ 1 · ป่าเริ่มต้น</small></div></div>
  <div class="panel stat"><span class="symbol" aria-hidden="true">⭐</span><div><small>คะแนน</small><strong id="score">0</strong></div></div>
  <div class="panel stat"><span class="symbol" aria-hidden="true">🪙</span><div><small>เหรียญ</small><strong id="coins">0</strong></div></div>
  <div class="panel time-pill"><span class="timer-symbol" aria-hidden="true">⏱</span><div><small>เวลา</small><strong id="time">03:00</strong></div></div>
- <div class="panel minimap"><canvas id="mini" width="104" height="90" aria-label="แผนที่ย่อ"></canvas></div>
+ <div class="panel minimap"><canvas id="mini" width="160" height="140" aria-label="แผนที่ย่อ"></canvas></div>
  <button class="icon-button" id="pause" type="button" aria-label="เปิดเมนูและหยุดเกม">Ⅱ</button>
 </div>
 <div class="practice-tag" id="practice-tag">PRACTICE · ไม่มีคะแนนออนไลน์</div>

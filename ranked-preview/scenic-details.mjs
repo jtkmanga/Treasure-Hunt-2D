@@ -152,9 +152,10 @@ export function drawScenicGround(g,map,scenery,tile,x,y,xx,yy,size,now){
  const code=hash(x,y,41),p=scenery.p;
  if(tile===3){
   // Animated waterfall is water-only and cannot be walked through.
-  if(code%5===0){
-   const scroll=(Math.floor(now/120)%7);
-   draw(g,scenery.waterfall,xx+size*.17,yy+scroll-8,size*.68,size*.98);
+  if(code%17===0 && map.tiles[y-1]?.[x]===2){
+   // Rare waterfall at an existing water+cliff edge only.
+   const scroll=Math.floor(now/150)%5;
+   draw(g,scenery.waterfall,xx+size*.24,yy+scroll-4,size*.48,size*.68);
   }else if(code%3===0){
    draw(g,scenery.lilypad,xx+size*.16,yy+size*.2,size*.61,size*.46);
   }
@@ -189,11 +190,11 @@ export function drawScenicBoundary(g,scenery,x,y,xx,yy,size){
  // Decorative cliffs and cascades outside the authoritative map.
  // Cannot be collected, reached or used to bypass collision.
  const code=hash(x,y,65);
- if(x<0&&x>=-3&&y>=2&&y<=8){
-  if(x===-2||code%3===0){
-   draw(g,scenery.waterfall,xx,yy,size+1,size+1);
-  }else draw(g,scenery.cliff,xx,yy,size+1,size+1);
- }else if(code%11===0){
-  draw(g,scenery.cliff,xx,yy-size*.22,size+1,size*1.24);
+ // Natural cliff breaks and a single waterfall, not a hard wall of 3x7 blue blocks.
+ if(x===-2&&y===5){
+  draw(g,scenery.cliff,xx,yy,size+1,size+1);
+  draw(g,scenery.waterfall,xx+size*.16,yy-size*.12,size*.62,size*1.25);
+ }else if(code%19===0){
+  draw(g,scenery.cliff,xx,yy-size*.22,size+1,size*1.15);
  }
 }

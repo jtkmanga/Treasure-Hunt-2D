@@ -1,7 +1,8 @@
 // Original, locally drawn retro pixel artwork; no licensed sprites or external assets.
 // Decoration must never change the collision map or position of official coins/chests.
 import {createScenery,drawScenicGround,drawScenicObjects,drawScenicBoundary} from "./scenic-details.mjs";
-export const TILE_SIZE=74;
+// 16:9 reference: ~40–50 screen px per world tile, not the V3 74px close-up.
+export const TILE_SIZE=43;
 const palettes=[
  {grass:["#538d38","#679d43","#42792f","#7eae52"],dark:"#214d2c",leaf:["#174f36","#1f7046","#298651","#3c9b53","#83c04e","#a9d76c"],trunk:["#513b29","#745033","#a47443"],path:["#997243","#b88b50","#d9ae65","#e9c47d"],rock:["#455668","#708077","#98a49a"],water:["#104e83","#156eac","#289bd0","#80d4f0"]},
  {grass:["#766139","#8e7945","#67522e","#a08b54"],dark:"#3b3928",leaf:["#544b32","#76612e","#988140","#b3a052","#c4ad64","#dfc77b"],trunk:["#4e3925","#725033","#b18c55"],path:["#796043","#aa8355","#cba36e","#e0c08c"],rock:["#514b43","#8b8171","#ada28b"],water:["#294b5f","#326c80","#4597a4","#93d2ce"]},
@@ -14,7 +15,11 @@ function px(g,x,y,w,h,c){g.fillStyle=c;g.fillRect(Math.floor(x),Math.floor(y),Ma
 function poly(g,coords,color){g.fillStyle=color;g.beginPath();g.moveTo(coords[0],coords[1]);for(let i=2;i<coords.length;i+=2)g.lineTo(coords[i],coords[i+1]);g.closePath();g.fill();}
 function bloom(g,x,y,color="#e8ef8a"){px(g,x,y,3,3,color);px(g,x+1,y-2,1,7,"#ffffff9a");px(g,x-2,y+1,7,1,"#ffffff9a");}
 function grassTile(p,variant){return sprite(32,32,g=>{
- const k=variant%4;px(g,0,0,32,32,p.grass[k]);
+ const k=variant%4;px(g,0,0,32,32,p.grass[1]);
+ for(let j=0;j<5;j++){
+  const n=hash(j,variant,29),x=n%27,y=(n>>>6)%27;
+  px(g,x,y,4+(n%5),2+(n>>>8)%5,p.grass[(k+1+n%3)%4]);
+ }
  for(let i=0;i<38;i++){
   const v=hash(i,variant,13),x=v%32,y=(v>>>7)%32;
   px(g,x,y,(v%7===0?3:1)+(v%3),1,p.grass[(k+((v>>>5)%3)+1)%4]);
@@ -27,22 +32,43 @@ function grassTile(p,variant){return sprite(32,32,g=>{
  if(variant%9===0){px(g,23,13,2,2,"#c4b99a");px(g,24,12,2,2,"#d3c5a0");}
 });}
 function pathTile(p,variant){return sprite(32,32,g=>{
+ // Irregular broken dirt, grass encroaching on the trail at the edges.
  g.drawImage(grassTile(p,variant),0,0);
- px(g,0,4,32,25,p.path[0]);
- for(let y=4;y<29;y+=3)for(let x=0;x<32;x+=4){
-  const n=hash(x,y,variant);
-  px(g,x+(n%2),y,(n%5)+1,1,p.path[1+(n%3)]);
+ const n0=hash(variant,22,70);
+ for(let y=0;y<32;y+=2){
+  const center=15+Math.floor(Math.sin(y*.27+variant*.7)*2);
+  const width=10+hash(y,variant,75)%4;
+  const left=center-width;
+  px(g,left,y,width*2,2,p.path[1+(hash(y,variant,13)%2)]);
+  for(let i=0;i<7;i++){
+   const n=hash(i+y*17,variant,33),x=left+n%(width*2);
+   px(g,x,y,1+n%4,1,p.path[(n>>>6)%4]);
+  }
+  if(y%4===0){
+   px(g,left-3,y+1,4,2,p.grass[variant%3]);
+   px(g,left+width*2-2,y,4,3,p.grass[(variant+1)%3]);
+  }
  }
- for(let x=0;x<32;x+=5){const n=hash(x,variant,88);px(g,x,3+n%3,3,2,p.grass[n%4]);px(g,x,27+n%3,4,2,p.grass[(n>>>3)%4]);}
+ for(let i=0;i<13;i++){
+  const v=hash(i,variant,88),x=4+v%25,y=3+(v>>>6)%26;
+  px(g,x,y,1+v%3,1,p.path[(v>>>10)%4]);
+ }
 });}
 function waterTile(p,variant){return sprite(32,32,g=>{
  px(g,0,0,32,32,p.water[0]);
- for(let i=0;i<32;i+=3){
-  const n=hash(i,variant,5),x=n%32,y=(n>>>5)%32;
-  px(g,x,y,4+n%6,1,p.water[1+n%3]);
+ for(let y=0;y<32;y+=3){
+  const w=hash(y,variant,66);
+  px(g,(w%8),y,21+(w%7),2,p.water[(w>>>5)%3]);
+  px(g,(w>>>4)%24,y+1,4+(w>>>7)%7,1,p.water[2]);
  }
- px(g,2,2,10,1,p.water[2]);px(g,13,16,8,1,p.water[3]);
- if(variant%3===0){px(g,22,23,9,3,p.leaf[2]);px(g,24,21,5,2,p.leaf[4]);}
+ for(let i=0;i<8;i++){
+  const n=hash(i,variant,5),x=n%28,y=(n>>>5)%28;
+  px(g,x,y,3+n%3,1,p.water[3]);
+ }
+ if(variant%5===0){
+  px(g,9,14,11,3,p.leaf[1]);px(g,7,13,13,2,p.leaf[3]);
+  px(g,16,13,6,4,p.leaf[2]);
+ }
 });}
 function rockSprite(p,variant){return sprite(46,50,g=>{
  px(g,7,37,30,9,"#0b2924a0");
@@ -53,23 +79,47 @@ function rockSprite(p,variant){return sprite(46,50,g=>{
  px(g,9,32,8,3,p.rock[0]);px(g,22,36,13,3,p.rock[0]);
  for(let i=0;i<5;i++){const n=hash(i,variant,62);px(g,8+n%26,19+n%13,2,1,p.rock[n%3]);}
 });}
-function treeSprite(p,variant){return sprite(66,78,g=>{
- // cast shadow and the textured trunk; treetops intentionally overlap the tile above
- px(g,13,65,41,6,"#06281ca0");
- px(g,29,40,12,28,p.trunk[0]);px(g,33,46,7,19,p.trunk[1]);px(g,34,51,2,12,p.trunk[2]);
- px(g,24,58,5,9,p.trunk[0]);px(g,40,57,5,9,p.trunk[0]);
- const clusters=[[23,29,17],[41,31,19],[32,16,20],[16,44,16],[50,46,14],[31,43,19]];
- for(let i=0;i<clusters.length;i++){
-  const [cx,cy,r]=clusters[i];
-  for(let y=-r;y<r;y+=3)for(let x=-r;x<r;x+=3){
-   if((x*x)/(r*r)+(y*y)/(r*r)>1.1)continue;
-   const color=p.leaf[(hash(x+cx,y+cy,i+variant)%6)];
-   px(g,cx+x,cy+y,4,4,color);
+function treeSprite(p,variant){
+ return sprite(96,118,g=>{
+  const rnd=(i,z=0)=>hash(i,variant,z);
+  // Trunk, roots and foliage occupy distinct pixel planes. The silhouette is
+  // intentionally uneven instead of the old six symmetrical bush circles.
+  px(g,25,98,46,8,"#061b18a9");
+  px(g,42,61,15,40,p.trunk[0]);px(g,46,66,8,34,p.trunk[1]);
+  px(g,39,85,5,15,p.trunk[2]);px(g,54,75,3,22,p.trunk[2]);
+  px(g,38,95,8,7,p.trunk[0]);px(g,55,93,9,6,p.trunk[0]);
+  // Displaced, overlapping irregular crowns from back to front.
+  const crowns=[[30,54,24],[65,57,24],[42,32,29],[63,30,24],[21,37,18],[77,42,18],[46,54,27],[51,17,19]];
+  for(let i=0;i<crowns.length;i++){
+   const [cx,cy,r]=crowns[i];
+   for(let y=-r;y<=r;y+=3)for(let x=-r;x<=r;x+=3){
+    const jit=(rnd(x*19+y*3,i)%7)-3;
+    if((x*x)/(r*r)+(y*y)/((r*.83)*(r*.83))>1+jit*.035)continue;
+    const ix=cx+x,iy=cy+y;
+    if(ix<1||ix>91||iy<1||iy>85)continue;
+    const h=rnd(ix,iy+i),choice=(iy<cy-r*.3?3:iy<cy+r*.22?2:1)+h%2;
+    px(g,ix,iy,4,4,p.leaf[Math.min(5,choice)]);
+    if(h%9===0)px(g,ix,iy,3,2,p.leaf[5]);
+    if(h%13===0)px(g,ix+1,iy+2,3,2,p.leaf[0]);
+   }
+   // Irregular rim shadow adds top-down depth.
+   for(let j=0;j<22;j++){
+    const v=rnd(j,i),a=((v%628)/100),rx=cx+Math.cos(a)*r*.79,ry=cy+Math.sin(a)*r*.63;
+    if(ry>cy+3)px(g,rx,ry,4,3,p.leaf[v%2]);
+   }
   }
-  for(let j=0;j<8;j++){const n=hash(j,i,variant);px(g,cx-r/2+n%(r),cy-r/2+(n>>>4)%r,4,2,p.leaf[5]);}
- }
- px(g,24,11,3,2,"#c2e581");px(g,46,24,3,2,"#c7ed86");
-});}
+  for(let j=0;j<34;j++){
+    const v=rnd(j,76),x=15+(v%67),y=10+((v>>>8)%60);
+    if(v%4!==0)px(g,x,y,2+v%3,2,p.leaf[4+(v>>>5)%2]);
+  }
+  // Glints, mushrooms on roots and ambient light.
+  px(g,18,73,3,3,p.leaf[5]);px(g,74,68,3,2,p.leaf[5]);
+  if(variant%3===0){
+    px(g,67,94,11,4,"#b74535");px(g,70,91,7,3,"#f1b35c");
+    px(g,71,92,2,2,"#fff6d5");
+  }
+ });
+}
 function flowerSprite(p,variant){return sprite(18,18,g=>{
  px(g,7,7,3,9,p.leaf[2]);px(g,4,11,5,3,p.leaf[3]);
  const petal=variant%3===0?"#fdf2d1":variant%3===1?"#ff9d9f":"#e5aaff";
@@ -207,7 +257,7 @@ export function drawPixelWorld(g,session,art,width,height,display,now=0){
  // Slightly larger 16-bit hero; drawn last so player stays readable.
  const moving=Math.hypot(session.player.x-display.x,session.player.y-display.y)>.018;
  const bob=moving?Math.sin(now*.026)*1.3:0;
- scaled(g,art.hero,px-T*.37,py-T*.99+bob,T*.74,T*1.04);
+ scaled(g,art.hero,px-T*.33,py-T*.94+bob,T*.66,T*.96);
 }
 export function drawMiniMap(g,map,player){
  const canvas=g.canvas,w=canvas.width,h=canvas.height;
