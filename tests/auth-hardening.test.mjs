@@ -65,7 +65,7 @@ function accountFetch(user,{status=200,fail=false}={}){
     assert.ok(url.startsWith("https://identitytoolkit.googleapis.com/v1/accounts:lookup?key="));
     assert.equal(opts.method,"POST");
     assert.equal(opts.redirect,"manual");
-    assert.equal(opts.cache,"no-store");
+    assert.equal(opts.cache,undefined);
     assert.deepEqual(JSON.parse(opts.body),{idToken});
     return {ok:!fail,status,json:async()=>({users:[user]})};
   };
