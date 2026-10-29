@@ -1,9 +1,9 @@
 {
   "name": "treasure-hunt-2d",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "private": true,
   "description": "2D prototype with offline ranked practice sharing deterministic server simulation",
   "scripts": {
-    "test": "node smoke.test.cjs && node --test tests/online.test.mjs tests/run-store.test.mjs tests/staging.test.mjs tests/firebase-client.test.mjs tests/firebase-paste.test.mjs tests/staging-verification.test.mjs tests/auth-hardening.test.mjs tests/appcheck-mobile.test.mjs tests/server-appcheck-verify.test.mjs tests/client-appcheck-server.test.mjs tests/appcheck-diagnostics.test.mjs tests/appcheck-redirect.test.mjs tests/account-status-staging.test.mjs tests/account-status-mobile.test.mjs tests/ranked-practice-parity.test.mjs"
+    "test": "node smoke.test.cjs && node --test tests/online.test.mjs tests/run-store.test.mjs tests/staging.test.mjs tests/firebase-client.test.mjs tests/firebase-paste.test.mjs tests/staging-verification.test.mjs tests/auth-hardening.test.mjs tests/appcheck-mobile.test.mjs tests/server-appcheck-verify.test.mjs tests/client-appcheck-server.test.mjs tests/appcheck-diagnostics.test.mjs tests/appcheck-redirect.test.mjs tests/account-status-staging.test.mjs tests/account-status-mobile.test.mjs tests/ranked-practice-parity.test.mjs tests/landscape-pixel-hud.test.mjs"
   }
 }

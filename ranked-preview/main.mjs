@@ -1,164 +1,165 @@
-import {MAP_SIZE,TICK_MS,MAX_TICKS,createRunSession,advanceRunTick,replayRun}
-  from "./run-engine.mjs";
-
-const byId=id=>document.getElementById(id);
-const canvas=byId("world"),ctx=canvas.getContext("2d",{alpha:false});
-if(!ctx)throw Error("Canvas unavailable");
-const LEVELS=[
- {name:"ป่าล่าสมบัติ",land:"#508d56",shade:"#6ba269"},
- {name:"ถ้ำทองคำ",land:"#75664a",shade:"#958056"},
- {name:"วิหารโบราณ",land:"#647e6c",shade:"#8ca17c"}
-];
-const SEED=123456789, TILE=34;
-let level=0,session=createRunSession(level,SEED),display={...session.player},frameLog=[];
-let running=false,runEnd=0,clockId=null,lastDraw=performance.now();
-let requestedCollect=false;
-const pressedKeys=new Set(),pressedPads=new Set();
-function startRun(){
- clearInterval(clockId);
- level=Number(byId("levelSelect").value);
- session=createRunSession(level,SEED);
- display={...session.player};frameLog=[];requestedCollect=false;
- pressedKeys.clear();pressedPads.clear();document.querySelectorAll("[data-dir]").forEach(b=>b.classList.remove("pressed"));
- running=true;runEnd=performance.now()+MAX_TICKS*TICK_MS;
- byId("levelSelect").disabled=true;byId("start").textContent="เริ่มใหม่";
- byId("level").textContent=LEVELS[level].name+" • ฝึก";
- byId("status").textContent="กำลังเล่นรอบฝึก • คะแนนนี้ยังไม่บันทึกลงอันดับจริง";
- updateHud();
- clockId=setInterval(step,TICK_MS);
+import {TICK_MS,MAX_TICKS,createRunSession,advanceRunTick,replayRun} from "./run-engine.mjs";
+import {createPixelArt,drawPixelWorld,drawMiniMap} from "./pixel-art.mjs";
+const el=id=>document.getElementById(id);
+const world=el("world"),ctx=world.getContext("2d",{alpha:false}),mini=el("mini").getContext("2d");
+if(!ctx||!mini)throw Error("Canvas 2D unsupported");
+const LEVELS=["ป่าลึกลับ","ถ้ำทองคำ","วิหารโบราณ"],SEED=123456789;
+let level=0,session=createRunSession(0,SEED),art=createPixelArt(0),display={...session.player};
+let running=false,paused=true,started=false,ended=false,lastPaint=performance.now();
+let frameLog=[],interval=null,remainingMs=MAX_TICKS*TICK_MS,deadline=0,collectPending=false;
+let joyPointer=null,joyX=0,joyY=0,downKeys=new Set(),toastTimeout=0;
+const stick=el("stick"),joystick=el("joystick"),menu=el("menu"),rotate=el("rotate"),levels=el("levelSelect");
+function isPortrait(){return innerHeight>innerWidth;}
+function layout(){
+ rotate.hidden=!isPortrait();
+ if(!isPortrait())resizeCanvas();
 }
-function direction(){
- const left=pressedPads.has("left")||pressedKeys.has("ArrowLeft")||pressedKeys.has("a");
- const right=pressedPads.has("right")||pressedKeys.has("ArrowRight")||pressedKeys.has("d");
- const up=pressedPads.has("up")||pressedKeys.has("ArrowUp")||pressedKeys.has("w");
- const down=pressedPads.has("down")||pressedKeys.has("ArrowDown")||pressedKeys.has("s");
- return [Number(right)-Number(left),Number(down)-Number(up)];
+function resizeCanvas(){
+ const w=world.clientWidth,h=world.clientHeight,dpr=Math.min(2,devicePixelRatio||1);
+ const pw=Math.max(1,Math.floor(w*dpr)),ph=Math.max(1,Math.floor(h*dpr));
+ if(world.width!==pw||world.height!==ph){world.width=pw;world.height=ph;}
+ ctx.setTransform(dpr,0,0,dpr,0,0);return {w,h};
 }
-function step(){
- if(!running)return;
- if(performance.now()>=runEnd){finish("ครบเวลา 3 นาที");return;}
- const [x,y]=direction(),frame=[x,y,requestedCollect?1:0];
- requestedCollect=false;
- advanceRunTick(session,frame);
- frameLog.push(frame);
- if(session.tick>=MAX_TICKS)finish("ครบ 900 จังหวะ");
- updateHud();
-}
-function finish(reason){
- if(!running)return;
- running=false;clearInterval(clockId);clockId=null;
- byId("levelSelect").disabled=false;
- pressedPads.clear();pressedKeys.clear();requestedCollect=false;
- // Browser-side replay is a parity self-check, NOT server authentication.
- let matched=false;
- try{
-  const expected=replayRun({level,seed:SEED,frames:frameLog});
-  matched=expected.score===session.score
-    &&expected.coinsCollected===session.coinsCollected
-    &&expected.chestCollected===session.chestCollected
-    &&Math.abs(expected.finalX-Math.round(session.player.x*1000)/1000)<0.000001
-    &&Math.abs(expected.finalY-Math.round(session.player.y*1000)/1000)<0.000001;
- }catch{matched=false;}
- byId("status").textContent=reason+" • คะแนนฝึก "+session.score+
-  " • ตรวจย้อนหลังในเบราว์เซอร์: "+(matched?"ตรงกัน":"ไม่ตรงกัน")+
-  " • ยังไม่ได้รับรองจากเซิร์ฟเวอร์ / ไม่ส่งคะแนนจริง";
- updateHud();
+async function requestLandscape(){
+ try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)
+  await document.documentElement.requestFullscreen({navigationUI:"hide"});}catch{}
+ try{if(screen.orientation?.lock)await screen.orientation.lock("landscape");}catch{}
+ layout();
 }
 function updateHud(){
- byId("score").textContent=String(session.score);
- byId("coins").textContent=String(session.coinsCollected);
- byId("ticks").textContent=session.tick+"/"+MAX_TICKS;
- const remaining=running?Math.max(0,Math.min((MAX_TICKS-session.tick)*TICK_MS,
-   runEnd-performance.now())):(session.tick?0:MAX_TICKS*TICK_MS);
- const seconds=Math.ceil(remaining/1000);
- byId("time").textContent=String(Math.floor(seconds/60)).padStart(2,"0")+":"+
-   String(seconds%60).padStart(2,"0");
+ el("score").textContent=String(session.score);el("coins").textContent=String(session.coinsCollected);
+ el("level").textContent=LEVELS[level];el("region").textContent="พื้นที่ "+(level+1)+" · ฝึกเท่านั้น";
+ const ms=running&&!paused?Math.max(0,Math.min(remainingMs,deadline-performance.now())):remainingMs;
+ const s=Math.ceil(Math.max(0,ms)/1000);
+ el("time").textContent=String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");
 }
+function toast(s,seconds=2){
+ el("toast").textContent=s;el("toast").classList.add("show");
+ clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>el("toast").classList.remove("show"),seconds*1000);
+}
+function clearControls(){
+ joyPointer=null;joyX=joyY=0;downKeys.clear();collectPending=false;
+ stick.style.transform="translate(-50%,-50%)";el("collect").classList.remove("pressed");
+}
+function startRun(){
+ clearInterval(interval);level=Number(levels.value);
+ session=createRunSession(level,SEED);art=createPixelArt(level);display={...session.player};
+ frameLog=[];remainingMs=MAX_TICKS*TICK_MS;started=true;ended=false;running=true;paused=false;
+ deadline=performance.now()+remainingMs;levels.disabled=true;menu.hidden=true;
+ el("start").textContent="↻ เริ่มใหม่";el("result").textContent="";
+ clearControls();updateHud();interval=setInterval(simulate,TICK_MS);
+ toast("เริ่มฝึก 3 นาที · ไม่มีคะแนนออนไลน์");
+}
+function pauseRun(){
+ if(!running||paused)return;
+ remainingMs=Math.max(0,Math.min(remainingMs,deadline-performance.now()));
+ paused=true;clearInterval(interval);interval=null;clearControls();
+ menu.hidden=false;el("resume").hidden=false;
+ el("result").textContent="พักการฝึก · เวลาหยุดขณะพัก";updateHud();
+}
+function resumeRun(){
+ if(!running||!paused||ended||isPortrait())return;
+ paused=false;menu.hidden=true;deadline=performance.now()+remainingMs;
+ clearInterval(interval);interval=setInterval(simulate,TICK_MS);updateHud();
+}
+function endRun(reason){
+ if(ended||!started)return;
+ running=false;paused=true;ended=true;clearInterval(interval);interval=null;
+ remainingMs=0;clearControls();let matched=false;
+ try{
+  const result=replayRun({level,seed:SEED,frames:frameLog});
+  matched=result.score===session.score&&result.coinsCollected===session.coinsCollected
+   &&result.chestCollected===session.chestCollected
+   &&result.finalX===Math.round(session.player.x*1000)/1000
+   &&result.finalY===Math.round(session.player.y*1000)/1000;
+ }catch{}
+ menu.hidden=false;levels.disabled=false;el("resume").hidden=true;
+ el("result").textContent=reason+" · คะแนนฝึก "+session.score+
+  " · ตรวจย้อนหลังในเบราว์เซอร์ "+(matched?"ตรงกัน":"ไม่ตรงกัน")+
+  " · ไม่ส่งคะแนนจริง";
+ el("start").textContent="▶ เล่นอีกรอบ";toast("จบรอบฝึก "+session.score+" คะแนน",3);
+ updateHud();
+}
+function direction(){
+ const left=joyX<-.3||downKeys.has("arrowleft")||downKeys.has("a");
+ const right=joyX>.3||downKeys.has("arrowright")||downKeys.has("d");
+ const up=joyY<-.3||downKeys.has("arrowup")||downKeys.has("w");
+ const down=joyY>.3||downKeys.has("arrowdown")||downKeys.has("s");
+ return [Number(right)-Number(left),Number(down)-Number(up)];
+}
+function simulate(){
+ if(!running||paused)return;
+ if(performance.now()>=deadline){endRun("ครบเวลา 3 นาที");return;}
+ const [dx,dy]=direction(),frame=[dx,dy,collectPending?1:0];collectPending=false;
+ const old=session.score;
+ try{advanceRunTick(session,frame);}catch{endRun("รอบฝึกหยุดเพราะข้อมูลเดินผิดปกติ");return;}
+ frameLog.push(frame);
+ if(session.score>old)toast(session.score-old>=100?"🗝️ เปิดหีบ +100":"🪙 เก็บเหรียญ +10",1);
+ updateHud();if(session.tick>=MAX_TICKS)endRun("ครบ 900 จังหวะ");
+}
+function setJoy(x,y){
+ const r=joystick.getBoundingClientRect(),max=r.width*.29;
+ const distance=Math.hypot(x,y);
+ if(distance>max){x=x/distance*max;y=y/distance*max;}
+ joyX=max?x/max:0;joyY=max?y/max:0;
+ stick.style.transform="translate(calc(-50% + "+Math.round(x)+"px),calc(-50% + "+Math.round(y)+"px))";
+}
+function moveJoy(e){
+ const r=joystick.getBoundingClientRect();setJoy(e.clientX-r.left-r.width/2,e.clientY-r.top-r.height/2);
+}
+joystick.addEventListener("pointerdown",e=>{
+ if(!running||paused)return;e.preventDefault();
+ joyPointer=e.pointerId;joystick.setPointerCapture(e.pointerId);moveJoy(e);
+});
+joystick.addEventListener("pointermove",e=>{if(joyPointer===e.pointerId)moveJoy(e);});
+for(const type of ["pointerup","pointercancel","lostpointercapture"])
+ joystick.addEventListener(type,e=>{if(joyPointer===e.pointerId){joyPointer=null;setJoy(0,0);}});
+el("collect").addEventListener("pointerdown",e=>{
+ if(!running||paused)return;e.preventDefault();
+ collectPending=true;el("collect").classList.add("pressed");
+});
+for(const type of ["pointerup","pointercancel","pointerleave"])
+ el("collect").addEventListener(type,()=>el("collect").classList.remove("pressed"));
+el("collect").addEventListener("click",e=>{if(e.detail===0&&running&&!paused)collectPending=true;});
+window.addEventListener("keydown",e=>{
+ const k=e.key.toLowerCase();
+ if(["arrowleft","arrowright","arrowup","arrowdown","w","a","s","d"," "].includes(k))e.preventDefault();
+ if(k===" "&&!e.repeat&&running&&!paused)collectPending=true;
+ if(k==="escape"&&running&&!paused)pauseRun();
+ downKeys.add(k);
+});
+window.addEventListener("keyup",e=>downKeys.delete(e.key.toLowerCase()));
+window.addEventListener("blur",()=>{if(running&&!paused)pauseRun();});
+document.addEventListener("visibilitychange",()=>{if(document.hidden&&running&&!paused)pauseRun();});
+window.addEventListener("pagehide",()=>{if(running&&!paused)pauseRun();});
+el("pause").addEventListener("click",()=>{
+ if(running&&!paused)pauseRun();else{menu.hidden=false;el("resume").hidden=!running||ended;}
+});
+el("start").addEventListener("click",async()=>{await requestLandscape();startRun();if(isPortrait())pauseRun();});
+el("resume").addEventListener("click",()=>{resumeRun();void requestLandscape();});
+el("fullscreen").addEventListener("click",()=>void requestLandscape());
+el("rotate-full").addEventListener("click",()=>void requestLandscape());
+levels.addEventListener("change",()=>{
+ if(started&&running)return;level=Number(levels.value);
+ session=createRunSession(level,SEED);art=createPixelArt(level);
+ display={...session.player};remainingMs=MAX_TICKS*TICK_MS;updateHud();
+});
+let lastMini=0;
 function paint(now){
- const dt=Math.min(.07,Math.max(0,(now-lastDraw)/1000));lastDraw=now;
- display.x+=(session.player.x-display.x)*Math.min(1,dt*15);
- display.y+=(session.player.y-display.y)*Math.min(1,dt*15);
- const width=canvas.clientWidth,height=canvas.clientHeight,dpr=Math.min(2,window.devicePixelRatio||1);
- if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){
-  canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);
+ const dt=Math.max(0,Math.min(.06,(now-lastPaint)/1000));lastPaint=now;
+ const lerp=Math.min(1,dt*15);
+ display.x+=(session.player.x-display.x)*lerp;
+ display.y+=(session.player.y-display.y)*lerp;
+ if(!isPortrait()){
+  const {w,h}=resizeCanvas();const dpr=Math.min(2,devicePixelRatio||1);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  drawPixelWorld(ctx,session,art,w,h,display,now);
+  if(now-lastMini>100){drawMiniMap(mini,session.map,display);lastMini=now;}
  }
- ctx.setTransform(dpr,0,0,dpr,0,0);
- ctx.fillStyle="#0a1f24";ctx.fillRect(0,0,width,height);
- const camX=display.x*TILE-width/2,camY=display.y*TILE-height/2;
- const xmin=Math.max(0,Math.floor(camX/TILE)),xmax=Math.min(MAP_SIZE-1,Math.ceil((camX+width)/TILE));
- const ymin=Math.max(0,Math.floor(camY/TILE)),ymax=Math.min(MAP_SIZE-1,Math.ceil((camY+height)/TILE));
- const style=LEVELS[level];
- for(let y=ymin;y<=ymax;y++)for(let x=xmin;x<=xmax;x++){
-  const sx=x*TILE-camX,sy=y*TILE-camY,tile=session.map.tiles[y][x];
-  ctx.fillStyle=(x+y)%2?style.land:style.shade;ctx.fillRect(sx,sy,TILE+1,TILE+1);
-  if(tile===1){
-   ctx.fillStyle="#5d4933";ctx.fillRect(sx+14,sy+14,7,18);
-   ctx.fillStyle="#1a5d43";ctx.beginPath();ctx.arc(sx+17,sy+11,12,0,Math.PI*2);ctx.fill();
-  }else if(tile===2){
-   ctx.fillStyle="#657478";ctx.fillRect(sx+3,sy+7,TILE-6,TILE-7);
-  }else if(tile===3){
-   ctx.fillStyle="#2b626a";ctx.fillRect(sx+4,sy+4,TILE-8,TILE-8);
-  }
- }
- for(const c of session.map.coins){
-  if(c.nextTick>session.tick)continue;
-  const x=c.x*TILE-camX,y=c.y*TILE-camY;
-  if(x< -15||x>width+15||y< -15||y>height+15)continue;
-  ctx.fillStyle="#ffdd71";ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);ctx.fill();
-  ctx.strokeStyle="#ab6a23";ctx.lineWidth=2;ctx.stroke();
- }
- if(!session.map.chest.claimed){
-  const x=session.map.chest.x*TILE-camX,y=session.map.chest.y*TILE-camY;
-  ctx.fillStyle="#b86b23";ctx.fillRect(x-11,y-9,22,17);
-  ctx.strokeStyle="#ffe181";ctx.lineWidth=4;ctx.strokeRect(x-11,y-9,22,17);
- }
- const x=display.x*TILE-camX,y=display.y*TILE-camY;
- ctx.fillStyle="#0a2721a0";ctx.beginPath();ctx.ellipse(x,y+11,11,4,0,0,Math.PI*2);ctx.fill();
- ctx.fillStyle="#388fe1";ctx.fillRect(x-8,y-2,16,17);
- ctx.fillStyle="#e9ba89";ctx.fillRect(x-8,y-16,16,16);
- ctx.fillStyle="#4c3429";ctx.fillRect(x-9,y-19,18,5);
- ctx.fillStyle="#132a29";ctx.fillRect(x-4,y-9,2,2);ctx.fillRect(x+3,y-9,2,2);
- if(!running&&!session.tick){
-  ctx.fillStyle="#092327bb";ctx.fillRect(0,0,width,height);
-  ctx.textAlign="center";ctx.fillStyle="#ffdf8e";ctx.font="bold 18px system-ui";
-  ctx.fillText("เริ่มฝึกเพื่อออกล่าสมบัติ",width/2,height/2);
- }
+ if(running&&!paused)updateHud();
  requestAnimationFrame(paint);
 }
-for(const el of document.querySelectorAll("[data-dir]")){
- const dir=el.dataset.dir;
- const down=e=>{
-  e.preventDefault();
-  if(!running)return;
-  pressedPads.add(dir);el.classList.add("pressed");
-  if(e.pointerId!==undefined)el.setPointerCapture(e.pointerId);
- };
- const up=()=>{
-  pressedPads.delete(dir);el.classList.remove("pressed");
- };
- el.addEventListener("pointerdown",down);
- for(const type of ["pointerup","pointercancel","lostpointercapture"])el.addEventListener(type,up);
-}
-byId("collect").addEventListener("pointerdown",e=>{
- if(running){requestedCollect=true;e.preventDefault();}
-});
-byId("collect").addEventListener("click",e=>{if(e.detail===0&&running)requestedCollect=true;});
-document.addEventListener("keydown",e=>{
- const k=e.key.length===1?e.key.toLowerCase():e.key;
- if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","w","a","s","d"," "].includes(k))e.preventDefault();
- if(k===" "&&!e.repeat&&running)requestedCollect=true;
- pressedKeys.add(k);
-});
-document.addEventListener("keyup",e=>pressedKeys.delete(e.key.length===1?e.key.toLowerCase():e.key));
-window.addEventListener("blur",()=>{pressedKeys.clear();pressedPads.clear();});
-document.addEventListener("visibilitychange",()=>{if(document.hidden){pressedKeys.clear();pressedPads.clear();}});
-byId("start").addEventListener("click",startRun);
-byId("levelSelect").addEventListener("change",()=>{
- if(running)return;
- level=Number(byId("levelSelect").value);
- session=createRunSession(level,SEED);display={...session.player};
- byId("level").textContent=LEVELS[level].name+" • ฝึก";
- updateHud();
-});
-requestAnimationFrame(paint);
-updateHud();
+addEventListener("resize",layout);
+addEventListener("orientationchange",layout);
+document.addEventListener("fullscreenchange",layout);
+layout();updateHud();requestAnimationFrame(paint);

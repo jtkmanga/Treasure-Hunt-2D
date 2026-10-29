@@ -1,84 +1,103 @@
 <!doctype html>
-<html lang="th">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<meta name="theme-color" content="#102b2b"/>
-<title>Treasure Hunt 2D — Ranked Practice (Offline)</title>
+<html lang="th"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#071c20">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Treasure Hunt 2D — Pixel Forest (Landscape Practice)</title>
 <style>
-:root{color-scheme:dark;--bg:#081b20;--surface:#12333b;--line:#3b6862;--muted:#b2ccc4;--gold:#ffcf69;--light:#f0f9e9}
+:root{color-scheme:dark;--gold:#ffe18c;--outline:#85e6cd;--ink:#061a1e}
 *{box-sizing:border-box}
-body{margin:0;min-height:100dvh;background:radial-gradient(ellipse at top,#1b4a43,#081b20 73%);font:15px system-ui,-apple-system,"Noto Sans Thai",sans-serif;color:var(--light)}
-main{max-width:720px;margin:0 auto;padding:14px;display:grid;gap:12px}
-header{display:grid;gap:5px}h1{font-size:clamp(22px,5.5vw,31px);margin:0;color:var(--gold);line-height:1.2}
-p{margin:0;line-height:1.55}
-.flag{display:inline-block;width:fit-content;background:#4e4129;border:1px solid #927943;border-radius:100px;padding:5px 11px;color:#ffe2a3;font-weight:700;font-size:12px}
-.muted{color:var(--muted);font-size:13px}
-.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
-.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;text-align:center;padding:8px 3px}
-.stat small{font-size:11px;color:var(--muted);display:block;white-space:nowrap}
-.stat strong{display:block;color:var(--gold);font-size:clamp(16px,4.4vw,24px);font-variant-numeric:tabular-nums}
-.viewport{border:2px solid #538479;border-radius:16px;position:relative;overflow:hidden;background:#193c31}
-canvas{display:block;width:100%;height:clamp(300px,47dvh,480px);touch-action:none}
-.world-label{position:absolute;left:10px;top:10px;background:#0b2628dc;padding:6px 9px;border-radius:9px;font-size:12px;font-weight:800}
-.explain{position:absolute;right:10px;top:10px;max-width:57%;font-size:11px;background:#0b2628dc;padding:6px 9px;border-radius:9px;text-align:right}
-.controls{display:flex;gap:12px;justify-content:space-between;align-items:center;background:#0b272c;border:1px solid var(--line);padding:11px;border-radius:16px}
-.dpad{display:grid;grid-template-columns:repeat(3,55px);grid-template-rows:repeat(3,44px);gap:3px;touch-action:none}
-.dpad button{touch-action:none;border:1px solid #749d8f;border-radius:12px;background:#285f57;color:white;font-size:23px;font-weight:850}
-.dpad button:active,.dpad button.pressed{background:#4cb391}
-button{font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
-button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
-button:disabled{opacity:.55;cursor:not-allowed}
-.collect{height:92px;min-width:115px;padding:12px;border-radius:50%;border:2px solid #fff2bb;background:linear-gradient(#ffe68f,#cc953b);color:#3e2d17;font-size:22px;font-weight:900;box-shadow:0 5px 0 #76512c;touch-action:none}
-.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.action,select{border:1px solid #77b59e;border-radius:10px;background:#19876b;color:white;padding:11px 14px;font-weight:750}
-select{background:#153c3f;max-width:170px}
-.status{border:1px solid var(--line);background:#092b30;padding:12px;border-radius:12px;font-size:13px;min-height:65px;line-height:1.6}
-.status b{color:var(--gold)}
-ul{margin:3px 0 4px;padding-left:20px;color:var(--muted);font-size:13px}
-footer{font-size:12px;color:var(--muted);line-height:1.6}
-a{color:#a2ecd5}
-@media(min-width:650px){.dpad{grid-template-columns:repeat(3,64px);grid-template-rows:repeat(3,50px)}.collect{min-width:145px}}
+html,body{width:100%;height:100%;margin:0;overflow:hidden;overscroll-behavior:none;background:#061b21;font-family:system-ui,-apple-system,"Noto Sans Thai",sans-serif;color:white}
+button,select{font:inherit;-webkit-tap-highlight-color:transparent}
+button{touch-action:manipulation;cursor:pointer;color:inherit}
+button:focus-visible,select:focus-visible{outline:3px solid #fff19b;outline-offset:2px}
+#game{position:fixed;inset:0;width:100vw;height:100dvh;overflow:hidden;background:#13382b;touch-action:none}
+#world{width:100%;height:100%;display:block;image-rendering:pixelated;touch-action:none}
+.vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 43%,#04111276 100%)}
+.hud{position:absolute;top:max(9px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));right:max(10px,env(safe-area-inset-right));display:flex;gap:clamp(5px,1vw,13px);align-items:flex-start;z-index:3;pointer-events:none}
+.panel,.icon-button{background:linear-gradient(145deg,#092631f3,#082129e8);border:2px solid #76ccbd;box-shadow:0 4px 0 #0920248f,0 4px 25px #02191c7c,inset 0 1px 0 #fffff33b;border-radius:18px;pointer-events:auto}
+.area{height:clamp(50px,12vh,80px);min-width:0;flex:1.5;display:flex;align-items:center;gap:8px;padding:5px 11px}
+.area-icon{font-size:24px;line-height:1;background:#225b4b;border-radius:10px;padding:8px;border:1px solid #8ec6a2}
+.area strong{font-size:clamp(13px,2.7vh,20px);color:#ffe29d;white-space:nowrap;display:block}
+.area small{font-size:clamp(10px,1.8vh,13px);color:#c4e7df;white-space:nowrap;display:block}
+.stat{height:clamp(50px,12vh,80px);flex:0.85;min-width:82px;display:flex;align-items:center;justify-content:center;gap:8px;padding:5px 7px}
+.stat .symbol{font-size:clamp(21px,4vh,36px);flex:0 0 auto;text-shadow:0 2px 2px #1d120c}
+.stat small,.time-pill small{display:block;font-size:clamp(10px,1.75vh,13px);color:#c1e5da}
+.stat strong,.time-pill strong{font-size:clamp(18px,4vh,30px);font-variant-numeric:tabular-nums;letter-spacing:.4px;white-space:nowrap}
+.time-pill{min-width:110px;flex:1.12;height:clamp(50px,12vh,80px);display:flex;align-items:center;justify-content:center;gap:8px;padding:5px 7px;border-color:#75d9af;border-radius:45px}
+.timer-symbol{font-size:clamp(19px,4vh,30px)}
+.minimap{width:clamp(70px,13vh,106px);height:clamp(50px,12vh,80px);padding:3px;flex:none}
+#mini{display:block;width:100%;height:100%;image-rendering:pixelated;border-radius:11px}
+.icon-button{height:clamp(50px,12vh,80px);width:clamp(42px,9vh,70px);font-weight:900;font-size:clamp(22px,4vh,32px);flex:none}
+.practice-tag{position:absolute;top:calc(max(9px,env(safe-area-inset-top)) + clamp(50px,12vh,80px) + 7px);left:max(12px,env(safe-area-inset-left));font-size:clamp(10px,1.8vh,13px);background:#0b292acb;padding:5px 10px;border:1px solid #69ac91;border-radius:20px;z-index:2;pointer-events:none}
+.joy{position:absolute;bottom:max(14px,env(safe-area-inset-bottom));left:max(20px,env(safe-area-inset-left));width:clamp(105px,29vh,190px);height:clamp(105px,29vh,190px);border:3px solid #e8be62;border-radius:50%;background:#062b34a9;box-shadow:0 0 0 5px #0a293876,inset 0 0 0 6px #30645678,0 7px 22px #0006;z-index:3;touch-action:none;user-select:none}
+.joy:after{content:"";position:absolute;inset:9%;border:1px solid #9bcdb26b;border-radius:50%;pointer-events:none}
+.direction{position:absolute;color:#b9d9d2b2;font-size:clamp(12px,3vh,19px);line-height:1}
+.direction.up{top:7%;left:50%;transform:translateX(-50%)}.direction.down{bottom:7%;left:50%;transform:translateX(-50%)}.direction.left{left:8%;top:50%;transform:translateY(-50%)}.direction.right{right:8%;top:50%;transform:translateY(-50%)}
+#stick{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:43%;height:43%;border-radius:50%;border:2px solid #fff;background:linear-gradient(#e2e4e3,#91adb0);box-shadow:inset 0 2px 3px #fff8,0 5px 7px #00191fb5;pointer-events:none}
+.collect{position:absolute;right:max(22px,env(safe-area-inset-right));bottom:max(17px,env(safe-area-inset-bottom));width:clamp(106px,31vh,194px);height:clamp(106px,31vh,194px);border-radius:50%;border:4px solid #fff4b6;background:linear-gradient(155deg,#ffe69a,#f4c75b 59%,#c98c31);color:#51340f;box-shadow:0 0 0 6px #9472308f,0 10px 0 #60401cc9,0 18px 25px #04151996,inset 0 4px 4px #fff9;font-weight:950;font-size:clamp(21px,5vh,36px);z-index:3;touch-action:none;text-shadow:0 1px #ffebac}
+.collect:active,.collect.pressed{transform:translateY(4px);box-shadow:0 0 0 6px #9472308f,0 5px 0 #60401c,inset 0 3px 8px #7c541d50}
+#toast{position:absolute;bottom:15px;left:50%;transform:translateX(-50%);max-width:42vw;padding:5px 14px;background:#041d27d9;color:#ffe8aa;border:1px solid #a2bf9c;border-radius:30px;font-size:clamp(10px,2.2vh,15px);text-align:center;pointer-events:none;opacity:0;transition:opacity .22s;z-index:4}
+#toast.show{opacity:1}
+.scrim{position:absolute;inset:0;background:#03161cbd;display:grid;place-items:center;z-index:9;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));overflow:auto}
+.scrim[hidden]{display:none!important}
+.menu{width:min(525px,96vw);max-height:94dvh;overflow:auto;background:linear-gradient(150deg,#134a47,#0b2631);border:3px solid #91cba9;border-radius:22px;padding:clamp(13px,2.5vh,22px);box-shadow:0 16px 60px #000b;text-align:center}
+.menu h1{font-size:clamp(19px,5vh,30px);color:var(--gold);margin:1px 0 5px}
+.menu p{color:#d1e6d5;line-height:1.4;font-size:clamp(12px,2.7vh,15px);margin:5px 0 10px}
+.small-note{font-size:12px!important;color:#b4d2c9!important}
+.choices{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:7px;margin:8px 0}
+select,.action{border:1px solid #9ecab8;background:#0c3c42;color:white;border-radius:13px;padding:10px 12px;font-weight:800}
+.action.primary{background:linear-gradient(#27a981,#137e70);border-color:#b1ead0;font-size:17px;min-width:155px}
+.action.secondary{background:#183c45}
+#result{margin:5px auto;font-weight:800;color:#ffe9a7;line-height:1.5}
+#rotate{z-index:12;background:#071e24f5}
+#rotate .menu{max-width:390px}
+#rotate .symbol{font-size:48px}
+@media(max-width:690px){.area-icon{display:none}.hud{gap:4px}.area{padding:4px 6px;flex:1.1}.stat{min-width:62px;gap:3px}.stat .symbol{font-size:18px}.stat strong{font-size:17px}.time-pill{min-width:88px;gap:3px;flex:1}.minimap{width:65px}.icon-button{width:42px}}
+@media(max-height:330px){.hud{top:3px}.practice-tag{top:55px}.joy,.collect{bottom:8px}.menu{padding:10px}.menu h1{font-size:18px}.menu p{font-size:12px}}
 </style>
 </head>
 <body>
-<main>
-<header><span class="flag">Ranked Practice • ออฟไลน์เท่านั้น</span>
-<h1>TREASURE HUNT 2D</h1>
-<p class="muted">โหมดฝึกการแข่งขันที่ใช้กติกาแผนที่และคะแนนเดียวกับตัวคำนวณฝั่งเซิร์ฟเวอร์ แต่ยังไม่ส่งคะแนนหรือรับรางวัลจริง</p></header>
-<section class="stats" aria-label="สถานะรอบฝึก">
- <div class="stat"><small>คะแนนฝึก</small><strong id="score">0</strong></div>
- <div class="stat"><small>เหรียญที่เก็บ</small><strong id="coins">0</strong></div>
- <div class="stat"><small>เวลา</small><strong id="time">03:00</strong></div>
- <div class="stat"><small>จังหวะ</small><strong id="ticks">0/900</strong></div>
-</section>
-<section class="viewport">
- <canvas id="world" aria-label="แผนที่ฝึกหาสมบัติแบบ 2D"></canvas>
- <div id="level" class="world-label">ป่าล่าสมบัติ • ฝึก</div>
- <div class="explain">ปุ่มทิศทาง / WASD<br/>กด เก็บ เมื่อเข้าใกล้เหรียญหรือหีบ</div>
-</section>
-<div class="controls">
- <div class="dpad" aria-label="ปุ่มบังคับทิศทาง">
-  <span></span><button type="button" data-dir="up" aria-label="ขึ้น">↑</button><span></span>
-  <button type="button" data-dir="left" aria-label="ซ้าย">←</button><span></span><button type="button" data-dir="right" aria-label="ขวา">→</button>
-  <span></span><button type="button" data-dir="down" aria-label="ลง">↓</button><span></span>
+<div id="game">
+<canvas id="world" aria-label="ฉากเกม Pixel Forest เต็มหน้าจอ"></canvas><div class="vignette"></div>
+<div class="hud" aria-label="สถานะการแข่งขันโหมดฝึก">
+ <div class="panel area"><div class="area-icon" aria-hidden="true">🌲</div><div><strong id="level">ป่าลึกลับ</strong><small id="region">พื้นที่ 1 · โหมดฝึก</small></div></div>
+ <div class="panel stat"><span class="symbol" aria-hidden="true">⭐</span><div><small>คะแนน</small><strong id="score">0</strong></div></div>
+ <div class="panel stat"><span class="symbol" aria-hidden="true">🪙</span><div><small>เหรียญ</small><strong id="coins">0</strong></div></div>
+ <div class="panel time-pill"><span class="timer-symbol" aria-hidden="true">⏱</span><div><small>เวลา</small><strong id="time">03:00</strong></div></div>
+ <div class="panel minimap"><canvas id="mini" width="104" height="90" aria-label="แผนที่ย่อ"></canvas></div>
+ <button class="icon-button" id="pause" type="button" aria-label="เปิดเมนูและหยุดเกม">Ⅱ</button>
+</div>
+<div class="practice-tag" id="practice-tag">PRACTICE · ไม่มีคะแนนออนไลน์</div>
+<div class="joy" id="joystick" role="group" aria-label="จอยสติ๊กเดิน 8 ทิศทาง"><span class="direction up">▲</span><span class="direction down">▼</span><span class="direction left">◀</span><span class="direction right">▶</span><div id="stick"></div></div>
+<button type="button" id="collect" class="collect" aria-label="เก็บเหรียญหรือเปิดหีบ">เก็บ ✦</button>
+<div id="toast" role="status" aria-live="polite"></div>
+<section class="scrim" id="menu" aria-label="เมนูเกม">
+ <div class="menu">
+  <div style="font-size:27px">🌲 🗝️ 🪙</div>
+  <h1>TREASURE HUNT 2D</h1>
+  <p>ป่าล่าสมบัติแบบ Pixel Art · เต็มจอแนวนอน</p>
+  <p class="small-note">ใช้จอยซ้ายเดิน / ปุ่มทองเก็บเหรียญ · คะแนนฝึกเท่านั้น ยังไม่มีการส่งข้อมูลจริง</p>
+  <div class="choices"><label for="levelSelect">ด่าน:</label>
+   <select id="levelSelect"><option value="0">🌲 ป่าลึกลับ</option><option value="1">🪨 ถ้ำทองคำ</option><option value="2">🏛️ วิหารโบราณ</option></select>
+  </div>
+  <div id="result" role="status"></div>
+  <div class="choices">
+   <button class="action primary" id="start" type="button">▶ เริ่มฝึก 3 นาที</button>
+   <button class="action secondary" id="resume" type="button" hidden>เล่นต่อ</button>
+   <button class="action secondary" id="fullscreen" type="button">⛶ เต็มจอ</button>
+  </div>
+  <p class="small-note">หากมือถือไม่หมุนอัตโนมัติ ให้ปิดล็อกการหมุนหน้าจอและหมุนเครื่องเป็นแนวนอน</p>
  </div>
- <button id="collect" class="collect" type="button">เก็บ ✦</button>
+</section>
+<section id="rotate" class="scrim" hidden aria-label="คำแนะนำหมุนหน้าจอ">
+ <div class="menu"><div class="symbol">↻ 📱</div><h1>กรุณาหมุนมือถือเป็นแนวนอน</h1>
+ <p>เกมออกแบบให้แสดงเต็มจอแนวนอน โดยเวลาและคะแนนอยู่ด้านบนของแผนที่</p>
+ <button class="action primary" id="rotate-full" type="button">⛶ ลองเปิดเต็มจอ</button>
+ <p class="small-note">ถ้าไม่หมุน ให้ปิดล็อกแนวตั้งในแผงควบคุมของโทรศัพท์</p></div>
+</section>
 </div>
-<div class="actions">
- <select id="levelSelect" aria-label="เลือกแผนที่ฝึก">
-  <option value="0">ป่าล่าสมบัติ</option><option value="1">ถ้ำทองคำ</option><option value="2">วิหารโบราณ</option>
- </select>
- <button id="start" class="action" type="button">เริ่มฝึก 3 นาที</button>
-</div>
-<div class="status" id="status" role="status" aria-live="polite">พร้อมเริ่มฝึก • แผนที่กำหนดโดย <b>Seed ตัวอย่าง</b> ไม่เชื่อมกับการแข่งขันจริง</div>
-<ul>
- <li>แต่ละรอบฝึกมีสูงสุด 900 จังหวะ จังหวะละ 200 มิลลิวินาที</li>
- <li>เก็บเหรียญได้ +10 คะแนน เหรียญเกิดใหม่หลัง 60 วินาที และหีบให้ +100 คะแนนได้ครั้งเดียวในรอบ</li>
- <li>เมื่อจบรอบ จะคำนวณการเดินย้อนหลังด้วยกติกาเดียวกันเพื่อเทียบผล แต่ยังไม่ถือเป็นการยืนยันจากเซิร์ฟเวอร์จริง</li>
-</ul>
-<footer>โหมดนี้ไม่ต้องใช้ Google Login, Firebase App Check, WebSocket หรือ D1 และไม่มีการส่งข้อมูลออกจากอุปกรณ์ เปิดเกม V1 เดิมได้ที่ <a href="../">หน้าแรก</a></footer>
-</main>
 <script type="module" src="./main.mjs"></script>
-</body>
-</html>
+</body></html>
