@@ -1,0 +1,27 @@
+name: Cloudflare JWKS redirect fix - regression (no deploy)
+on:
+  push:
+    branches: [fix/appcheck-cloudflare-redirect-20261029]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+      - name: Smoke check Staging is read-only, no user tokens
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://treasure-hunt-2d-staging-api.hjinffv5426.workers.dev"
+          ORIGIN="https://treasure-hunt-2d-jtk.pages.dev"
+          status=$(curl -sS --max-time 12 -o /dev/null -w '%{http_code}' "$BASE/api/v1/score" -H "Origin: $ORIGIN")
+          test "$status" = "404"
+          status=$(curl -sS --max-time 12 -o /dev/null -w '%{http_code}' "$BASE/api/v1/appcheck-verify" -H "Origin: $ORIGIN")
+          test "$status" = "401"
