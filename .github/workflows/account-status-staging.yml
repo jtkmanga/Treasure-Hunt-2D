@@ -15,6 +15,26 @@ jobs:
         with:
           node-version: '22'
       - run: npm test
+      - name: Live Staging denial and CORS smoke checks (no private user tokens)
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://treasure-hunt-2d-staging-api.hjinffv5426.workers.dev"
+          ORIGIN="https://treasure-hunt-2d-jtk.pages.dev"
+          check () {
+            local expected="$1"; shift
+            local actual
+            actual=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$@")
+            echo "HTTP $actual (expected $expected)"
+            test "$actual" = "$expected"
+          }
+          check 403 "$BASE/api/v1/account-status"
+          check 401 -H "Origin: $ORIGIN" "$BASE/api/v1/account-status"
+          check 405 -X POST -H "Origin: $ORIGIN" "$BASE/api/v1/account-status"
+          check 204 -X OPTIONS -H "Origin: $ORIGIN" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: authorization,x-firebase-appcheck" "$BASE/api/v1/account-status"
+          check 401 -H "Origin: $ORIGIN" "$BASE/api/v1/appcheck-verify"
+          check 404 -H "Origin: $ORIGIN" "$BASE/api/v1/score"
+          check 404 -H "Origin: $ORIGIN" "$BASE/api/v1/appcheck-jwks-probe"
       - name: Ensure no private key, billing or paid route added
         shell: bash
         run: |
