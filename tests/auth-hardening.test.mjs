@@ -22,7 +22,7 @@ function token(claims={},header={}){
 }
 const jwkFetch=async(url,opts)=>{
   assert.equal(url,"https://firebaseappcheck.googleapis.com/v1/jwks");
-  assert.equal(opts.redirect,"error");
+  assert.equal(opts.redirect,"manual");
   return {ok:true,json:async()=>({keys:[jwk]})};
 };
 test("verify a real RSA signature for the exact Firebase App Check app",async()=>{
@@ -64,7 +64,7 @@ function accountFetch(user,{status=200,fail=false}={}){
   return async(url,opts)=>{
     assert.ok(url.startsWith("https://identitytoolkit.googleapis.com/v1/accounts:lookup?key="));
     assert.equal(opts.method,"POST");
-    assert.equal(opts.redirect,"error");
+    assert.equal(opts.redirect,"manual");
     assert.equal(opts.cache,"no-store");
     assert.deepEqual(JSON.parse(opts.body),{idToken});
     return {ok:!fail,status,json:async()=>({users:[user]})};

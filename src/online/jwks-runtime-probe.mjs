@@ -18,7 +18,7 @@ export async function probeJwksRuntime(request,env={},injected={}){
  catch{return reply(503,"PROBE_PROTECTION_UNAVAILABLE",cors);}
  if(limit?.success!==true)return reply(429,"PROBE_RATE_LIMITED",cors);
  let fetched;
- try {fetched=await (injected.fetch??fetch)(JWKS_URL,{method:"GET",redirect:"error"});}
+ try {fetched=await (injected.fetch??fetch)(JWKS_URL,{method:"GET",redirect:"manual"});}
  catch(e){
    // Only this hard-coded public Google JWKS URL is fetched. This temporary
    // diagnostic is removed after root cause analysis; no tokens are involved.

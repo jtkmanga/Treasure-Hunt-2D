@@ -18,7 +18,7 @@ async function publicKeys(fetchImpl){
  // Cache only the built-in network fetch; isolated test fetches must not poison the cache.
  if(fetchImpl===fetch && cachedJwks && Date.now()<jwksExpiresAt)return cachedJwks;
  const fetchKeys=async()=>{
-  const r=await fetchImpl(APP_CHECK_JWKS_URL,{method:"GET",cache:"no-store",redirect:"error",signal:AbortSignal.timeout(4500)});
+  const r=await fetchImpl(APP_CHECK_JWKS_URL,{method:"GET",redirect:"manual"});
   if(!r.ok)throw Error("App Check keys unavailable");
   const body=await r.json();
   if(!Array.isArray(body?.keys)||body.keys.length===0||body.keys.length>20)throw Error("Invalid App Check keys");
@@ -74,7 +74,7 @@ export async function verifyFirebaseAccountIsActive(idToken,identity,config,opti
  // This extra request checks disabled status and validSince; no Admin SDK key.
  const requestUrl=ACCOUNT_LOOKUP_URL+"?key="+encodeURIComponent(apiKey);
  const r=await (options.fetchImpl??fetch)(requestUrl,{method:"POST",headers:{"content-type":"application/json"},
-   body:JSON.stringify({idToken}),cache:"no-store",redirect:"error",signal:AbortSignal.timeout(4500)});
+   body:JSON.stringify({idToken}),redirect:"manual"});
  if(!r.ok)throw Error("Firebase account status unavailable");
  const body=await r.json();
  if(!Array.isArray(body?.users)||body.users.length!==1)throw Error("Firebase account not found");
