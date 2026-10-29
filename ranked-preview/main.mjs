@@ -15,7 +15,7 @@ function layout(){
  if(!isPortrait())resizeCanvas();
 }
 function resizeCanvas(){
- const w=world.clientWidth,h=world.clientHeight,dpr=Math.min(2,devicePixelRatio||1);
+ const w=world.clientWidth,h=world.clientHeight,dpr=Math.min(1.25,devicePixelRatio||1);
  const pw=Math.max(1,Math.floor(w*dpr)),ph=Math.max(1,Math.floor(h*dpr));
  if(world.width!==pw||world.height!==ph){world.width=pw;world.height=ph;}
  ctx.setTransform(dpr,0,0,dpr,0,0);return {w,h};
@@ -146,12 +146,15 @@ levels.addEventListener("change",()=>{
 });
 let lastMini=0;
 function paint(now){
- const dt=Math.max(0,Math.min(.06,(now-lastPaint)/1000));lastPaint=now;
+ // Preserve phone battery: at most ~30 visual frames/sec; the official 200ms
+ // movement and scoring simulation continues unchanged on its own timer.
+ if(now-lastPaint<30){requestAnimationFrame(paint);return;}
+ const dt=Math.max(0,Math.min(.08,(now-lastPaint)/1000));lastPaint=now;
  const lerp=Math.min(1,dt*15);
  display.x+=(session.player.x-display.x)*lerp;
  display.y+=(session.player.y-display.y)*lerp;
  if(!isPortrait()){
-  const {w,h}=resizeCanvas();const dpr=Math.min(2,devicePixelRatio||1);
+  const {w,h}=resizeCanvas();const dpr=Math.min(1.25,devicePixelRatio||1);
   ctx.setTransform(dpr,0,0,dpr,0,0);
   drawPixelWorld(ctx,session,art,w,h,display,now);
   if(now-lastMini>100){drawMiniMap(mini,session.map,display);lastMini=now;}

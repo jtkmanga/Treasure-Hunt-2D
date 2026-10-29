@@ -1,6 +1,7 @@
 // Original, locally drawn retro pixel artwork; no licensed sprites or external assets.
 // Decoration must never change the collision map or position of official coins/chests.
-export const TILE_SIZE=52;
+import {createScenery,drawScenicGround,drawScenicObjects,drawScenicBoundary} from "./scenic-details.mjs";
+export const TILE_SIZE=74;
 const palettes=[
  {grass:["#538d38","#679d43","#42792f","#7eae52"],dark:"#214d2c",leaf:["#174f36","#1f7046","#298651","#3c9b53","#83c04e","#a9d76c"],trunk:["#513b29","#745033","#a47443"],path:["#997243","#b88b50","#d9ae65","#e9c47d"],rock:["#455668","#708077","#98a49a"],water:["#104e83","#156eac","#289bd0","#80d4f0"]},
  {grass:["#766139","#8e7945","#67522e","#a08b54"],dark:"#3b3928",leaf:["#544b32","#76612e","#988140","#b3a052","#c4ad64","#dfc77b"],trunk:["#4e3925","#725033","#b18c55"],path:["#796043","#aa8355","#cba36e","#e0c08c"],rock:["#514b43","#8b8171","#ada28b"],water:["#294b5f","#326c80","#4597a4","#93d2ce"]},
@@ -116,6 +117,7 @@ function heroSprite(){return sprite(34,50,g=>{
 });}
 export function createPixelArt(level=0){
  const p=palettes[level]||palettes[0];
+ const scenery=createScenery(level);
  const grass=Array.from({length:16},(_,i)=>grassTile(p,i));
  const path=Array.from({length:8},(_,i)=>pathTile(p,i));
  const water=Array.from({length:5},(_,i)=>waterTile(p,i));
@@ -123,7 +125,7 @@ export function createPixelArt(level=0){
  const rock=Array.from({length:4},(_,i)=>rockSprite(p,i));
  const bush=Array.from({length:4},(_,i)=>bushSprite(p,i));
  const flower=Array.from({length:3},(_,i)=>flowerSprite(p,i));
- return {p,grass,path,water,tree,rock,bush,flower,mushroom:mushroomSprite(),coin:coinSprite(),chest:chestSprite(),hero:heroSprite()};
+ return {p,scenery,grass,path,water,tree,rock,bush,flower,mushroom:mushroomSprite(),coin:coinSprite(),chest:chestSprite(),hero:heroSprite()};
 }
 function isDirt(map,x,y){
  if(map.tiles[y]?.[x]!==0)return false;
@@ -148,10 +150,14 @@ export function drawPixelWorld(g,session,art,width,height,display,now=0){
    const h=hash(x,y,session.map.tiles.length),idx=h%16;
    const texture=tile===3?art.water[idx%art.water.length]:
       !outside&&isDirt(map,x,y)?art.path[idx%art.path.length]:
-      outside&&h%19===0?art.water[idx%art.water.length]:art.grass[idx];
+      outside&&Math.sin(x*.43+y*.2)+Math.cos(y*.34-x*.11)>1.45?art.path[idx%art.path.length]:
+      outside&&x<0&&x>=-3&&y>=2&&y<=8?art.water[idx%art.water.length]:
+      art.grass[idx];
    scaled(g,texture,xx,yy,T+1,T+1);
+   if(tile!==undefined)drawScenicGround(g,map,art.scenery,tile,x,y,xx,yy,T,now);
    if(tile===2&& (x===0||y===0||x===25||y===25)){
-      scaled(g,art.rock[h%art.rock.length],xx+T*.06,yy+T*.12,T*.95,T*.95);
+      // Joined rocky escarpment instead of a repeated line of single boulders.
+      scaled(g,art.scenery.cliff,xx,yy,T+1,T+1);
    }
    if(tile===0&&!isDirt(map,x,y)){
     if(h%17===0)scaled(g,art.flower[h%3],xx+T*.2,yy+T*.44,T*.28,T*.3);
@@ -164,8 +170,14 @@ export function drawPixelWorld(g,session,art,width,height,display,now=0){
   const xx=x*T-cameraX,yy=y*T-cameraY,t=map.tiles[y]?.[x],h=hash(x,y,0);
   // Outside the authoritative 26x26 world is scenic forest only: never collectible.
   if(t===undefined){
-   if(h%7!==0)scaled(g,art.tree[h%art.tree.length],xx-T*.28,yy-T*.85,T*1.55,T*1.85);
-   else scaled(g,art.rock[h%art.rock.length],xx,yy+T*.1,T*.9,T*.85);
+   // Organic clearings break up the dense, obvious repeated forest wall.
+   const clearing=Math.sin(x*.43+y*.2)+Math.cos(y*.34-x*.11)>1.16;
+   if(!clearing&&h%10<6){
+    const scale=.93+(h%5)*.15;
+    scaled(g,art.tree[h%art.tree.length],xx-T*(scale-.55),yy-T*(scale-.34),T*1.48*scale,T*1.7*scale);
+   }else if(h%7===0)scaled(g,art.rock[h%art.rock.length],xx+T*.19,yy+T*.28,T*.72,T*.72);
+   else if(h%4===0)scaled(g,art.bush[h%art.bush.length],xx+T*.23,yy+T*.48,T*.56,T*.39);
+   drawScenicBoundary(g,art.scenery,x,y,xx,yy,T);
   }
   if(t===1)scaled(g,art.tree[h%art.tree.length],xx-T*.28,yy-T*.85,T*1.55,T*1.85);
   if(t===2&&x>0&&y>0&&x<25&&y<25)
@@ -175,6 +187,7 @@ export function drawPixelWorld(g,session,art,width,height,display,now=0){
     if(h%2===0){g.fillStyle="#427b3b";g.fillRect(Math.round(xx+T*.57),Math.round(yy+T*.52),Math.round(T*.27),Math.round(T*.11));}
     if(h%3===0)scaled(g,art.flower[0],xx+T*.4,yy+T*.3,T*.23,T*.25);
   }
+  if(t!==undefined)drawScenicObjects(g,map,art.scenery,t,x,y,xx,yy,T);
  }
  for(const coin of map.coins){
   if(coin.nextTick>session.tick)continue;
@@ -191,7 +204,10 @@ export function drawPixelWorld(g,session,art,width,height,display,now=0){
   }
  }
  const px=display.x*T-cameraX,py=display.y*T-cameraY;
- scaled(g,art.hero,px-T*.28,py-T*.8,T*.56,T*.85);
+ // Slightly larger 16-bit hero; drawn last so player stays readable.
+ const moving=Math.hypot(session.player.x-display.x,session.player.y-display.y)>.018;
+ const bob=moving?Math.sin(now*.026)*1.3:0;
+ scaled(g,art.hero,px-T*.37,py-T*.99+bob,T*.74,T*1.04);
 }
 export function drawMiniMap(g,map,player){
  const canvas=g.canvas,w=canvas.width,h=canvas.height;
