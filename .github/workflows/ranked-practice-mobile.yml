@@ -1,0 +1,38 @@
+name: Ranked Practice shared-engine parity and static ZIP (no deploy)
+on:
+  push:
+    branches: [feature/ranked-practice-parity-20261029]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test-and-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: All security, offline, and ranked engine tests
+        run: npm test
+      - name: Build mobile static ZIP preserving previous V1 and Login
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preview/ranked-preview preview/login preview/src/client
+          cp index.html preview/index.html
+          cp login/index.html login/login.mjs preview/login/
+          cp src/client/firebase-login-core.mjs src/client/appcheck-prep.mjs preview/src/client/
+          cp ranked-preview/index.html ranked-preview/main.mjs preview/ranked-preview/
+          cp src/online/run-engine.mjs preview/ranked-preview/run-engine.mjs
+          cmp src/online/run-engine.mjs preview/ranked-preview/run-engine.mjs
+          test "$(find preview -type f | wc -l)" -eq 8
+          ! find preview -type f | grep -E '(service-account|firebase-config|private-key|\.env)'
+          ! grep -E 'fetch\(|WebSocket|localStorage|sendBeacon' preview/ranked-preview/main.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: treasure-hunt-2d-ranked-practice-mobile
+          path: preview/
+          retention-days: 14
+          if-no-files-found: error
