@@ -18,8 +18,7 @@ export async function probeJwksRuntime(request,env={},injected={}){
  catch{return reply(503,"PROBE_PROTECTION_UNAVAILABLE",cors);}
  if(limit?.success!==true)return reply(429,"PROBE_RATE_LIMITED",cors);
  let fetched;
- try {fetched=await (injected.fetch??fetch)(JWKS_URL,{method:"GET",cache:"no-store",
-     redirect:"error",signal:AbortSignal.timeout(4500)});}
+ try {fetched=await (injected.fetch??fetch)(JWKS_URL,{method:"GET",redirect:"error"});}
  catch{return reply(503,"FETCH_THROWN",cors);}
  if(!fetched?.ok)return reply(503,"HTTP_NOT_OK",cors,{upstreamStatus:Number(fetched?.status)||0});
  let body;
