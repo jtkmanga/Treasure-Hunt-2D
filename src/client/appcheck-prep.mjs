@@ -87,7 +87,7 @@ export async function verifyActiveAccountOnServer({instance,getToken,user,apiOri
  const headers=appCheckHeader(app?.token);
  const idToken=await user.getIdToken();
  if(typeof idToken!=="string"||idToken.length<100||idToken.length>8192||
-    !/^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/.test(idToken))
+    !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(idToken))
    throw Error("Invalid Google identity token");
  let response;
  try{
