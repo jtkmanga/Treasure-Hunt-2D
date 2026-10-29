@@ -73,3 +73,48 @@ export function explainAppCheckFailure(err){
  return "การตรวจ App Check ยังไม่ผ่าน ("+
    (/^HTTP_[0-9]{3}$/.test(code)?code:"ไม่ทราบรหัส")+")";
 }
+
+/**
+ * One explicit active-account check AFTER Google ID and App Check verification.
+ * Keep tokens only in HTTPS headers; never print, cache, save or display credentials.
+ */
+export async function verifyActiveAccountOnServer({instance,getToken,user,apiOrigin,fetchImpl=fetch}) {
+ if(!instance||typeof getToken!=="function"||!user?.uid||
+    typeof user.getIdToken!=="function")throw Error("Sign in and initialize App Check first");
+ if(apiOrigin!=="https://treasure-hunt-2d-staging-api.hjinffv5426.workers.dev")
+    throw Error("Unapproved verification server");
+ const app=await getToken(instance,false);
+ const headers=appCheckHeader(app?.token);
+ const idToken=await user.getIdToken();
+ if(typeof idToken!=="string"||idToken.length<100||idToken.length>8192||
+    !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(idToken))
+   throw Error("Invalid Google identity token");
+ let response;
+ try{
+  response=await fetchImpl(apiOrigin+"/api/v1/account-status",{
+   method:"GET",headers:{...headers,Authorization:"Bearer "+idToken,Accept:"application/json"},
+   credentials:"omit",cache:"no-store",redirect:"error",signal:AbortSignal.timeout(8000)
+  });
+ }catch{throw Error("NETWORK_OR_CORS");}
+ if(response?.status!==200){
+   let payload;try{payload=await response.json();}catch{}
+   const codes=new Set(["ACCOUNT_LOOKUP_NOT_CONFIGURED","ACCOUNT_IDENTITY_INVALID",
+    "ACCOUNT_NOT_ACTIVE_OR_REVOKED","ACCOUNT_LOOKUP_UNAVAILABLE","VERIFY_RESULT_INVALID"]);
+   throw Error(codes.has(payload?.code)?payload.code:
+    "HTTP_"+(Number.isInteger(response?.status)?response.status:"UNKNOWN"));
+ }
+ let body;try{body=await response.json();}catch{throw Error("INVALID_RESPONSE");}
+ if(body?.ok!==true||body?.signedIn!==true||body?.uid!==user.uid||
+   body?.appCheckVerified!==true||body?.accountStatusVerified!==true||
+   body?.scoreWrites!==false)throw Error("ACCOUNT_RESPONSE_INVALID");
+ return {accountStatusVerified:true,appCheckVerified:true,scoreWrites:false};
+}
+export function explainAccountStatusError(error) {
+ const code=error?.message;
+ if(code==="ACCOUNT_LOOKUP_NOT_CONFIGURED")return "ยังไม่ได้ตั้งค่า Firebase Web API Key บน Staging (HTTP 503)";
+ if(code==="ACCOUNT_IDENTITY_INVALID")return "Google ID Token หรือบัญชีไม่ตรงกัน (HTTP 401)";
+ if(code==="ACCOUNT_NOT_ACTIVE_OR_REVOKED")return "บัญชีถูกระงับหรือ Token ถูกเพิกถอน (HTTP 401)";
+ if(code==="ACCOUNT_LOOKUP_UNAVAILABLE")return "Firebase Identity Toolkit ไม่พร้อม (HTTP 503)";
+ if(code==="VERIFY_RESULT_INVALID"||code==="ACCOUNT_RESPONSE_INVALID")return "ผลการตรวจสอบบัญชีไม่ถูกต้อง";
+ return explainAppCheckFailure(error);
+}

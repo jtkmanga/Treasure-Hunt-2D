@@ -1,10 +1,11 @@
 import {validateFirebaseWebConfig,parseWebConfigSnippet,verifyFirebaseUserWithApi,safeAuthError} from "../src/client/firebase-login-core.mjs";
-import {validatePublicSiteKey,getAppCheckOnce,verifyAppCheckOnServer,explainAppCheckFailure} from "../src/client/appcheck-prep.mjs";
+import {validatePublicSiteKey,getAppCheckOnce,verifyAppCheckOnServer,explainAppCheckFailure,verifyActiveAccountOnServer,explainAccountStatusError} from "../src/client/appcheck-prep.mjs";
 
 const $=id=>document.getElementById(id);
 const login=$("google-login"),verify=$("verify-api"),logout=$("google-logout");
 const configStatus=$("config-status"),loginStatus=$("login-status"),setup=$("setup-panel"),input=$("config-input"),apply=$("apply-config");
 const siteKeyInput=$("site-key"),appcheckStatus=$("appcheck-status"),appcheckButton=$("test-appcheck"),serverCheck=$("verify-appcheck-server");
+const accountCheck=$("verify-account-status"),accountStatus=$("account-status");
 // Set only AFTER verifying that the isolated API hostname is enabled and publicly testable.
 // Never use the GPT-VOXEL-3D Worker URL here.
 const STAGING_API_ORIGIN="https://treasure-hunt-2d-staging-api.hjinffv5426.workers.dev";
@@ -17,6 +18,7 @@ function controls(){
   verify.disabled=!firebaseAuth||busy||!currentUser||!STAGING_API_ORIGIN;
   appcheckButton.disabled=!firebaseAuth||busy||!currentUser||!appCheckInstance;
   serverCheck.disabled=!firebaseAuth||busy||!currentUser||!appCheckInstance;
+  accountCheck.disabled=!firebaseAuth||busy||!currentUser||!appCheckInstance;
 }
 
 async function initializeWithConfig(cfg) {
@@ -113,6 +115,21 @@ serverCheck.addEventListener("click",async()=>{
   setStatus(appcheckStatus,explainAppCheckFailure(error));
  }finally{busy=false;controls();}
 });
+accountCheck.addEventListener("click",async()=>{
+ if(!currentUser||busy||!appCheckInstance||!appCheckSDK)return;
+ busy=true;controls();
+ setStatus(accountStatus,"กำลังตรวจบัญชีที่ถูกระงับหรือเพิกถอน…");
+ try{
+  const result=await verifyActiveAccountOnServer({
+   instance:appCheckInstance,getToken:appCheckSDK.getToken,
+   user:currentUser,apiOrigin:STAGING_API_ORIGIN
+  });
+  if(result.accountStatusVerified)
+   setStatus(accountStatus,"Firebase ยืนยันบัญชียังใช้งานได้ และ Token ไม่ถูกเพิกถอน • ยังไม่เปิดคะแนนแข่งขัน");
+ }catch(error){
+  setStatus(accountStatus,explainAccountStatusError(error));
+ }finally{busy=false;controls();}
+});
 login.addEventListener("click",async()=>{
   if(!firebaseAuth||busy)return;busy=true;controls();
   setStatus(loginStatus,"กำลังเปิด Google Login…");
@@ -133,7 +150,7 @@ verify.addEventListener("click",async()=>{
 });
 logout.addEventListener("click",async()=>{
   if(!firebaseAuth||busy)return;busy=true;controls();
-  try{await authSDK.signOut(firebaseAuth);setStatus(loginStatus,"ออกจากระบบแล้ว");setStatus(appcheckStatus,"ออกจากระบบแล้ว");}
+  try{await authSDK.signOut(firebaseAuth);setStatus(loginStatus,"ออกจากระบบแล้ว");setStatus(appcheckStatus,"ออกจากระบบแล้ว");setStatus(accountStatus,"ออกจากระบบแล้ว");}
   catch{setStatus(loginStatus,"ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้ง");}
   finally{busy=false;controls();}
 });

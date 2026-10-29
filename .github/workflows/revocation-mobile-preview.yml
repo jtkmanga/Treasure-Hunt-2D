@@ -1,0 +1,33 @@
+name: Package optional revoked-account Staging preview (no deploy)
+on:
+  push:
+    branches: [feature/revoked-account-readonly-20261029]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test-and-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+      - name: Assemble public static mobile files only
+        shell: bash
+        run: |
+          mkdir -p preview/login preview/src/client
+          cp index.html preview/index.html
+          cp login/index.html login/login.mjs preview/login/
+          cp src/client/firebase-login-core.mjs src/client/appcheck-prep.mjs preview/src/client/
+          test "$(find preview -type f | wc -l)" -eq 5
+          ! find preview -type f | grep -E '(service-account|firebase-config|private-key|\.env)'
+          grep -q 'verifyActiveAccountOnServer' preview/login/login.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: treasure-hunt-2d-revocation-preview
+          path: preview/
+          retention-days: 14
+          if-no-files-found: error

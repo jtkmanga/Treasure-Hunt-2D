@@ -73,10 +73,16 @@ export async function verifyFirebaseAccountIsActive(idToken,identity,config,opti
  // Google's documented accounts:lookup endpoint accepts the user's own ID token.
  // This extra request checks disabled status and validSince; no Admin SDK key.
  const requestUrl=ACCOUNT_LOOKUP_URL+"?key="+encodeURIComponent(apiKey);
- const r=await (options.fetchImpl??fetch)(requestUrl,{method:"POST",headers:{"content-type":"application/json"},
+ let r;
+ try {
+  r=await (options.fetchImpl??fetch)(requestUrl,{method:"POST",
+   headers:{"content-type":"application/json"},
    body:JSON.stringify({idToken}),redirect:"manual"});
- if(!r.ok)throw Error("Firebase account status unavailable");
- const body=await r.json();
+ } catch { throw Error("Firebase account status unavailable"); }
+ // Do not follow any redirect, including to a host which could receive the ID token.
+ if(!r?.ok || r.status!==200)throw Error("Firebase account status unavailable");
+ let body;
+ try { body=await r.json(); } catch { throw Error("Firebase account status unavailable"); }
  if(!Array.isArray(body?.users)||body.users.length!==1)throw Error("Firebase account not found");
  const user=body.users[0];
  if(user?.localId!==identity.uid||user?.disabled===true||
