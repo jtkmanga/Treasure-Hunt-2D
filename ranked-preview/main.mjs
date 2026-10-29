@@ -135,7 +135,7 @@ window.addEventListener("pagehide",()=>{if(running&&!paused)pauseRun();});
 el("pause").addEventListener("click",()=>{
  if(running&&!paused)pauseRun();else{menu.hidden=false;el("resume").hidden=!running||ended;}
 });
-el("start").addEventListener("click",()=>{startRun();void requestLandscape();});
+el("start").addEventListener("click",async()=>{await requestLandscape();startRun();if(isPortrait())pauseRun();});
 el("resume").addEventListener("click",()=>{resumeRun();void requestLandscape();});
 el("fullscreen").addEventListener("click",()=>void requestLandscape());
 el("rotate-full").addEventListener("click",()=>void requestLandscape());
