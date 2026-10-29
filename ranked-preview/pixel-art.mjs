@@ -136,7 +136,11 @@ function isDirt(map,x,y){
 function scaled(g,sprite,x,y,w,h){g.drawImage(sprite,Math.round(x),Math.round(y),Math.round(w),Math.round(h));}
 export function drawPixelWorld(g,session,art,width,height,display,now=0){
  const T=TILE_SIZE,map=session.map;
- const cameraX=display.x*T-width/2,cameraY=display.y*T-height/2;
+ // Clamp viewport at the playable map boundary to avoid large blank bars
+ // when the server-authoritative spawn is close to a corner.
+ const worldWidth=map.tiles[0].length*T,worldHeight=map.tiles.length*T;
+ const cameraX=Math.max(0,Math.min(Math.max(0,worldWidth-width),display.x*T-width/2));
+ const cameraY=Math.max(0,Math.min(Math.max(0,worldHeight-height),display.y*T-height/2));
  const xmin=Math.max(0,Math.floor(cameraX/T)-2),xmax=Math.min(map.tiles[0].length-1,Math.ceil((cameraX+width)/T)+2);
  const ymin=Math.max(0,Math.floor(cameraY/T)-3),ymax=Math.min(map.tiles.length-1,Math.ceil((cameraY+height)/T)+2);
  g.imageSmoothingEnabled=false;
