@@ -16,7 +16,7 @@ test("Cloudflare probe validates public JWKS with a genuine RSA JWK, returns no 
  const body=await res.json();
  assert.equal(body.code,"JWKS_FETCH_AND_RSA_IMPORT_OK");
  assert.equal(body.keyCount,1);
- assert.doesNotMatch(JSON.stringify(body),/test|private|n\":|e\":/);
+ assert.deepEqual(Object.keys(body).sort(),["code","keyCount","ok"].sort());
 });
 test("untrusted origins, missing binding and upstream failure fail closed",async()=>{
  assert.equal((await probeJwksRuntime(req("https://evil.test"),env)).status,403);
