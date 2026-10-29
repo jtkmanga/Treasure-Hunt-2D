@@ -55,8 +55,8 @@ test("client only renders practice; no score writes, payments, login token or re
  assert.match(script,/advanceRunTick\(session,frame\)/);
  assert.match(script,/replayRun\(\{level,seed:SEED,frames:frameLog\}\)/);
  assert.match(script,/frameLog\.push\(frame\)/);
- assert.match(html,/Ranked Practice • ออฟไลน์เท่านั้น/);
- assert.match(html,/ยังไม่ส่งคะแนนหรือรับรางวัลจริง/);
+ assert.match(html,/PRACTICE · ไม่มีคะแนนออนไลน์/);
+ assert.match(html,/คะแนนฝึกเท่านั้น ยังไม่มีการส่งข้อมูลจริง/);
  assert.doesNotMatch(script,/\bfetch\s*\(|XMLHttpRequest|WebSocket|firebase|localStorage|\.\/api\/|\/api\/v1\/|sendBeacon/);
  assert.doesNotMatch(script,/console\.log|eval\s*\(/);
 });

@@ -1,0 +1,43 @@
+name: Landscape Pixel Art 2D offline practice and mobile ZIP
+on:
+  push:
+    branches: [feature/landscape-pixel-hud-20261029]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Regression security and deterministic replay
+        run: npm test
+      - name: Check mobile modules parse
+        run: |
+          node --check ranked-preview/main.mjs
+          node --check ranked-preview/pixel-art.mjs
+          node --check ranked-preview/run-engine.mjs || true
+      - name: Package landscape website without backend or credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p site/ranked-preview site/login site/src/client
+          cp index.html site/index.html
+          cp login/index.html login/login.mjs site/login/
+          cp src/client/firebase-login-core.mjs src/client/appcheck-prep.mjs site/src/client/
+          cp ranked-preview/index.html ranked-preview/main.mjs ranked-preview/pixel-art.mjs site/ranked-preview/
+          cp src/online/run-engine.mjs site/ranked-preview/run-engine.mjs
+          cmp site/ranked-preview/run-engine.mjs src/online/run-engine.mjs
+          test "$(find site -type f | wc -l)" -eq 9
+          ! find site -type f | grep -E '(\.env|service-account|private-key|firebase-config)'
+          ! grep -E 'fetch\(|WebSocket|sendBeacon|localStorage' site/ranked-preview/main.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Treasure-Hunt-2D-Pixel-Art-Landscape-Mobile
+          path: site/
+          retention-days: 14
+          if-no-files-found: error
