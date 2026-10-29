@@ -25,3 +25,5 @@ jobs:
           test "$status" = "404"
           status=$(curl -sS --max-time 12 -o /dev/null -w '%{http_code}' "$BASE/api/v1/appcheck-verify" -H "Origin: $ORIGIN")
           test "$status" = "401"
+          status=$(curl -sS --max-time 12 -o /dev/null -w '%{http_code}' "$BASE/api/v1/appcheck-jwks-probe" -H "Origin: $ORIGIN")
+          test "$status" = "404"
