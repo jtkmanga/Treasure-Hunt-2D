@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#102b2b"/>
+<title>Treasure Hunt 2D — Ranked Practice (Offline)</title>
+<style>
+:root{color-scheme:dark;--bg:#081b20;--surface:#12333b;--line:#3b6862;--muted:#b2ccc4;--gold:#ffcf69;--light:#f0f9e9}
+*{box-sizing:border-box}
+body{margin:0;min-height:100dvh;background:radial-gradient(ellipse at top,#1b4a43,#081b20 73%);font:15px system-ui,-apple-system,"Noto Sans Thai",sans-serif;color:var(--light)}
+main{max-width:720px;margin:0 auto;padding:14px;display:grid;gap:12px}
+header{display:grid;gap:5px}h1{font-size:clamp(22px,5.5vw,31px);margin:0;color:var(--gold);line-height:1.2}
+p{margin:0;line-height:1.55}
+.flag{display:inline-block;width:fit-content;background:#4e4129;border:1px solid #927943;border-radius:100px;padding:5px 11px;color:#ffe2a3;font-weight:700;font-size:12px}
+.muted{color:var(--muted);font-size:13px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;text-align:center;padding:8px 3px}
+.stat small{font-size:11px;color:var(--muted);display:block;white-space:nowrap}
+.stat strong{display:block;color:var(--gold);font-size:clamp(16px,4.4vw,24px);font-variant-numeric:tabular-nums}
+.viewport{border:2px solid #538479;border-radius:16px;position:relative;overflow:hidden;background:#193c31}
+canvas{display:block;width:100%;height:clamp(300px,47dvh,480px);touch-action:none}
+.world-label{position:absolute;left:10px;top:10px;background:#0b2628dc;padding:6px 9px;border-radius:9px;font-size:12px;font-weight:800}
+.explain{position:absolute;right:10px;top:10px;max-width:57%;font-size:11px;background:#0b2628dc;padding:6px 9px;border-radius:9px;text-align:right}
+.controls{display:flex;gap:12px;justify-content:space-between;align-items:center;background:#0b272c;border:1px solid var(--line);padding:11px;border-radius:16px}
+.dpad{display:grid;grid-template-columns:repeat(3,55px);grid-template-rows:repeat(3,44px);gap:3px;touch-action:none}
+.dpad button{touch-action:none;border:1px solid #749d8f;border-radius:12px;background:#285f57;color:white;font-size:23px;font-weight:850}
+.dpad button:active,.dpad button.pressed{background:#4cb391}
+button{font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+button:disabled{opacity:.55;cursor:not-allowed}
+.collect{height:92px;min-width:115px;padding:12px;border-radius:50%;border:2px solid #fff2bb;background:linear-gradient(#ffe68f,#cc953b);color:#3e2d17;font-size:22px;font-weight:900;box-shadow:0 5px 0 #76512c;touch-action:none}
+.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.action,select{border:1px solid #77b59e;border-radius:10px;background:#19876b;color:white;padding:11px 14px;font-weight:750}
+select{background:#153c3f;max-width:170px}
+.status{border:1px solid var(--line);background:#092b30;padding:12px;border-radius:12px;font-size:13px;min-height:65px;line-height:1.6}
+.status b{color:var(--gold)}
+ul{margin:3px 0 4px;padding-left:20px;color:var(--muted);font-size:13px}
+footer{font-size:12px;color:var(--muted);line-height:1.6}
+a{color:#a2ecd5}
+@media(min-width:650px){.dpad{grid-template-columns:repeat(3,64px);grid-template-rows:repeat(3,50px)}.collect{min-width:145px}}
+</style>
+</head>
+<body>
+<main>
+<header><span class="flag">Ranked Practice • ออฟไลน์เท่านั้น</span>
+<h1>TREASURE HUNT 2D</h1>
+<p class="muted">โหมดฝึกการแข่งขันที่ใช้กติกาแผนที่และคะแนนเดียวกับตัวคำนวณฝั่งเซิร์ฟเวอร์ แต่ยังไม่ส่งคะแนนหรือรับรางวัลจริง</p></header>
+<section class="stats" aria-label="สถานะรอบฝึก">
+ <div class="stat"><small>คะแนนฝึก</small><strong id="score">0</strong></div>
+ <div class="stat"><small>เหรียญที่เก็บ</small><strong id="coins">0</strong></div>
+ <div class="stat"><small>เวลา</small><strong id="time">03:00</strong></div>
+ <div class="stat"><small>จังหวะ</small><strong id="ticks">0/900</strong></div>
+</section>
+<section class="viewport">
+ <canvas id="world" aria-label="แผนที่ฝึกหาสมบัติแบบ 2D"></canvas>
+ <div id="level" class="world-label">ป่าล่าสมบัติ • ฝึก</div>
+ <div class="explain">ปุ่มทิศทาง / WASD<br/>กด เก็บ เมื่อเข้าใกล้เหรียญหรือหีบ</div>
+</section>
+<div class="controls">
+ <div class="dpad" aria-label="ปุ่มบังคับทิศทาง">
+  <span></span><button type="button" data-dir="up" aria-label="ขึ้น">↑</button><span></span>
+  <button type="button" data-dir="left" aria-label="ซ้าย">←</button><span></span><button type="button" data-dir="right" aria-label="ขวา">→</button>
+  <span></span><button type="button" data-dir="down" aria-label="ลง">↓</button><span></span>
+ </div>
+ <button id="collect" class="collect" type="button">เก็บ ✦</button>
+</div>
+<div class="actions">
+ <select id="levelSelect" aria-label="เลือกแผนที่ฝึก">
+  <option value="0">ป่าล่าสมบัติ</option><option value="1">ถ้ำทองคำ</option><option value="2">วิหารโบราณ</option>
+ </select>
+ <button id="start" class="action" type="button">เริ่มฝึก 3 นาที</button>
+</div>
+<div class="status" id="status" role="status" aria-live="polite">พร้อมเริ่มฝึก • แผนที่กำหนดโดย <b>Seed ตัวอย่าง</b> ไม่เชื่อมกับการแข่งขันจริง</div>
+<ul>
+ <li>แต่ละรอบฝึกมีสูงสุด 900 จังหวะ จังหวะละ 200 มิลลิวินาที</li>
+ <li>เก็บเหรียญได้ +10 คะแนน เหรียญเกิดใหม่หลัง 60 วินาที และหีบให้ +100 คะแนนได้ครั้งเดียวในรอบ</li>
+ <li>เมื่อจบรอบ จะคำนวณการเดินย้อนหลังด้วยกติกาเดียวกันเพื่อเทียบผล แต่ยังไม่ถือเป็นการยืนยันจากเซิร์ฟเวอร์จริง</li>
+</ul>
+<footer>โหมดนี้ไม่ต้องใช้ Google Login, Firebase App Check, WebSocket หรือ D1 และไม่มีการส่งข้อมูลออกจากอุปกรณ์ เปิดเกม V1 เดิมได้ที่ <a href="../">หน้าแรก</a></footer>
+</main>
+<script type="module" src="./main.mjs"></script>
+</body>
+</html>
