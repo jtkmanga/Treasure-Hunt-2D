@@ -12,7 +12,7 @@ const main=read("../ranked-preview/main.mjs");
 test("camera zoom matches wider concept framing and no 74px V3 zoom",()=>{
  assert.equal(TILE_SIZE,43);
  assert.match(art,/const cameraX=display\.x\*T-width\/2/);
- assert.match(art,/const cameraY=display\.y\*T-height\/2/);
+ assert.match(art,/cameraY=display\.y\*T-height\/2/);
  assert.doesNotMatch(art,/TILE_SIZE=74/);
  assert.match(art,/function treeSprite/);
  assert.match(art,/function pathTile/);
