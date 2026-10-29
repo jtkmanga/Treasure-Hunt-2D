@@ -5,7 +5,7 @@
 <meta name="theme-color" content="#071c20">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Treasure Hunt 2D — Pixel Forest (Landscape Practice)</title>
+<title>Treasure Hunt 2D — Fantasy Pixel Forest V3 (Landscape Practice)</title>
 <style>
 :root{color-scheme:dark;--gold:#ffe18c;--outline:#85e6cd;--ink:#061a1e}
 *{box-sizing:border-box}
@@ -57,6 +57,26 @@ select,.action{border:1px solid #9ecab8;background:#0c3c42;color:white;border-ra
 #rotate .symbol{font-size:48px}
 @media(max-width:690px){.area-icon{display:none}.hud{gap:4px}.area{padding:4px 6px;flex:1.1}.stat{min-width:62px;gap:3px}.stat .symbol{font-size:18px}.stat strong{font-size:17px}.time-pill{min-width:88px;gap:3px;flex:1}.minimap{width:65px}.icon-button{width:42px}}
 @media(max-height:330px){.hud{top:3px}.practice-tag{top:55px}.joy,.collect{bottom:8px}.menu{padding:10px}.menu h1{font-size:18px}.menu p{font-size:12px}}
+
+/* Pixel Forest art-pass 2: warm fantasy-gold framing without blocking play. */
+.panel,.icon-button{
+ border-color:#e7c877;
+ background:linear-gradient(160deg,#092c31ef,#05232de9 78%);
+ box-shadow:0 0 0 2px #08271d95,0 6px 20px #001318aa,inset 0 2px 0 #fff6d245;
+}
+.area{border-color:#f3d984;box-shadow:0 0 0 2px #163f249c,0 5px 17px #032018ad,inset 0 2px 0 #fff8c95c}
+.stat .symbol{filter:drop-shadow(0 2px 3px #4b2c11)}
+.area-icon{background:linear-gradient(160deg,#236b4b,#0d4b40);border-color:#e7d58c}
+.stat strong,.time-pill strong{text-shadow:0 2px 5px #0008}
+.time-pill{border-color:#9deac4;box-shadow:0 0 0 2px #174c47a4,0 5px 16px #041d1cb0,inset 0 2px 0 #ffeac840}
+.minimap{border-color:#f3d895;overflow:hidden}
+.icon-button{color:#fff4cf;line-height:1}
+.practice-tag{border:1px solid #dcc37b;background:#052529dc;color:#f6f2db;box-shadow:0 2px 12px #001713a8}
+.joy{border-color:#f4d47a;box-shadow:0 0 0 5px #7359247a,inset 0 0 0 6px #96aa7b3e,0 8px 20px #0007;background:radial-gradient(#345c585a,#052c36bc)}
+#stick{background:linear-gradient(160deg,#eff8f9,#aabdc2);box-shadow:inset 0 2px 2px #fff,0 6px 8px #001b23b5}
+.collect{border-color:#fff6cb;background:linear-gradient(145deg,#fff5a7,#fbd468 56%,#bd7923);box-shadow:0 0 0 5px #866021af,0 9px 0 #6e461c,0 15px 27px #001d138c,inset 0 4px 8px #fff7d2}
+#game:after{content:"";position:absolute;inset:0;pointer-events:none;border:2px solid #05191a33;z-index:1}
+@media(max-width:680px){.area-icon{display:none}.area small{font-size:9px}.hud{gap:4px}.stat small,.time-pill small{font-size:9px}.icon-button{border-radius:13px}}
 </style>
 </head>
 <body>
@@ -78,7 +98,7 @@ select,.action{border:1px solid #9ecab8;background:#0c3c42;color:white;border-ra
  <div class="menu">
   <div style="font-size:27px">🌲 🗝️ 🪙</div>
   <h1>TREASURE HUNT 2D</h1>
-  <p>ป่าล่าสมบัติแบบ Pixel Art · เต็มจอแนวนอน</p>
+  <p>ป่าล่าสมบัติ Pixel Adventure · เต็มจอแนวนอน</p>
   <p class="small-note">ใช้จอยซ้ายเดิน / ปุ่มทองเก็บเหรียญ · คะแนนฝึกเท่านั้น ยังไม่มีการส่งข้อมูลจริง</p>
   <div class="choices"><label for="levelSelect">ด่าน:</label>
    <select id="levelSelect"><option value="0">🌲 ป่าลึกลับ</option><option value="1">🪨 ถ้ำทองคำ</option><option value="2">🏛️ วิหารโบราณ</option></select>
