@@ -136,20 +136,19 @@ function isDirt(map,x,y){
 function scaled(g,sprite,x,y,w,h){g.drawImage(sprite,Math.round(x),Math.round(y),Math.round(w),Math.round(h));}
 export function drawPixelWorld(g,session,art,width,height,display,now=0){
  const T=TILE_SIZE,map=session.map;
- // Clamp viewport at the playable map boundary to avoid large blank bars
- // when the server-authoritative spawn is close to a corner.
- const worldWidth=map.tiles[0].length*T,worldHeight=map.tiles.length*T;
- const cameraX=Math.max(0,Math.min(Math.max(0,worldWidth-width),display.x*T-width/2));
- const cameraY=Math.max(0,Math.min(Math.max(0,worldHeight-height),display.y*T-height/2));
- const xmin=Math.max(0,Math.floor(cameraX/T)-2),xmax=Math.min(map.tiles[0].length-1,Math.ceil((cameraX+width)/T)+2);
- const ymin=Math.max(0,Math.floor(cameraY/T)-3),ymax=Math.min(map.tiles.length-1,Math.ceil((cameraY+height)/T)+2);
+ // Keep the hero near screen center, including at the spawn near (2.5,2.5).
+ // Draw purely decorative forest beyond collision-map edges rather than blank bars.
+ const cameraX=display.x*T-width/2,cameraY=display.y*T-height/2;
+ const xmin=Math.floor(cameraX/T)-2,xmax=Math.ceil((cameraX+width)/T)+2;
+ const ymin=Math.floor(cameraY/T)-3,ymax=Math.ceil((cameraY+height)/T)+2;
  g.imageSmoothingEnabled=false;
  g.fillStyle="#0c3045";g.fillRect(0,0,width,height);
  for(let y=ymin;y<=ymax;y++)for(let x=xmin;x<=xmax;x++){
-   const xx=x*T-cameraX,yy=y*T-cameraY,tile=map.tiles[y][x];
+   const xx=x*T-cameraX,yy=y*T-cameraY,tile=map.tiles[y]?.[x],outside=tile===undefined;
    const h=hash(x,y,session.map.tiles.length),idx=h%16;
    const texture=tile===3?art.water[idx%art.water.length]:
-      isDirt(map,x,y)?art.path[idx%art.path.length]:art.grass[idx];
+      !outside&&isDirt(map,x,y)?art.path[idx%art.path.length]:
+      outside&&h%19===0?art.water[idx%art.water.length]:art.grass[idx];
    scaled(g,texture,xx,yy,T+1,T+1);
    if(tile===2&& (x===0||y===0||x===25||y===25)){
       scaled(g,art.rock[h%art.rock.length],xx+T*.06,yy+T*.12,T*.95,T*.95);
@@ -162,7 +161,12 @@ export function drawPixelWorld(g,session,art,width,height,display,now=0){
  }
  // Obstacle layer y-ordered. All collision positions are unchanged.
  for(let y=ymin;y<=ymax;y++)for(let x=xmin;x<=xmax;x++){
-  const xx=x*T-cameraX,yy=y*T-cameraY,t=map.tiles[y][x],h=hash(x,y,0);
+  const xx=x*T-cameraX,yy=y*T-cameraY,t=map.tiles[y]?.[x],h=hash(x,y,0);
+  // Outside the authoritative 26x26 world is scenic forest only: never collectible.
+  if(t===undefined){
+   if(h%7!==0)scaled(g,art.tree[h%art.tree.length],xx-T*.28,yy-T*.85,T*1.55,T*1.85);
+   else scaled(g,art.rock[h%art.rock.length],xx,yy+T*.1,T*.9,T*.85);
+  }
   if(t===1)scaled(g,art.tree[h%art.tree.length],xx-T*.28,yy-T*.85,T*1.55,T*1.85);
   if(t===2&&x>0&&y>0&&x<25&&y<25)
     scaled(g,art.rock[h%art.rock.length],xx+T*.05,yy+T*.06,T*.96,T*.98);
