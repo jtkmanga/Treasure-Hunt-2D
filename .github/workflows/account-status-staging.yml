@@ -1,0 +1,22 @@
+name: Revocation and disabled-account Staging tests (no deploy)
+on:
+  push:
+    branches: [feature/revoked-account-readonly-20261029]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+      - name: Ensure no private key, billing or paid route added
+        shell: bash
+        run: |
+          grep -q 'accountStatusVerified:true' src/online/account-status-staging.mjs
+          ! grep -E '(-----BEGIN PRIVATE KEY-----|sk_live_|ghp_)' src/online/account-status-staging.mjs
