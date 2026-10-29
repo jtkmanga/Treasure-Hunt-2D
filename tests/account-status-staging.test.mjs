@@ -91,3 +91,18 @@ test("CORS preflight remains restricted to Google ID + App Check and GET",async(
  }),env,validators);
  assert.equal(d.status,405);
 });
+
+test("Identity Toolkit network failure, redirect and bad JSON fail closed as unavailable",async()=>{
+ const {verifyFirebaseAccountIsActive}=await import("../src/online/firebase-hardening.mjs");
+ const account={uid:"firebase-user",authTime:1750000000};
+ const cfg={apiKey:"AIza"+"z".repeat(35),projectId:"treasure-hunt-2d"};
+ for(const fake of [
+  async()=>{throw Error("Edge connection failed")},
+  async()=>({ok:true,status:302,json:async()=>({users:[]})}),
+  async()=>({ok:true,status:200,json:async()=>{throw Error("JSON parser failed")}})
+ ]) {
+  await assert.rejects(
+   verifyFirebaseAccountIsActive(jwt,account,cfg,{fetchImpl:fake}),
+   /Firebase account status unavailable/);
+ }
+});
