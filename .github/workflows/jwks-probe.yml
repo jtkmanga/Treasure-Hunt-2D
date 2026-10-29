@@ -1,0 +1,23 @@
+name: Temporary Google JWKS fetch probe in Cloudflare Worker
+on:
+  push:
+    branches: [fix/jwks-worker-runtime-probe-20261029]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+      - name: Test Worker public-key probe (no identity tokens or user data)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body -sS --max-time 14 \
+            -H "Origin: https://treasure-hunt-2d-jtk.pages.dev" \
+            "https://treasure-hunt-2d-staging-api.hjinffv5426.workers.dev/api/v1/appcheck-jwks-probe"

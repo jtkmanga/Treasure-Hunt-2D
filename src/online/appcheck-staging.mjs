@@ -1,3 +1,4 @@
+import {probeJwksRuntime} from "./jwks-runtime-probe.mjs";
 import {checkStagingLogin} from "./staging-verification.mjs";
 import {verifyFirebaseAppCheckToken} from "./firebase-hardening.mjs";
 
@@ -13,6 +14,7 @@ function reject(status,code,headers={}) {
 }
 export async function checkStagingAppCheck(request,env={},options={}) {
  const url=new URL(request.url);
+ if(url.pathname==="/api/v1/appcheck-jwks-probe")return probeJwksRuntime(request,env);
  if(url.pathname!=="/api/v1/appcheck-verify")
    return checkStagingLogin(request,env,options);
  if(env.FIREBASE_PROJECT_ID!=="treasure-hunt-2d"||
