@@ -19,7 +19,14 @@ export async function probeJwksRuntime(request,env={},injected={}){
  if(limit?.success!==true)return reply(429,"PROBE_RATE_LIMITED",cors);
  let fetched;
  try {fetched=await (injected.fetch??fetch)(JWKS_URL,{method:"GET",redirect:"error"});}
- catch{return reply(503,"FETCH_THROWN",cors);}
+ catch(e){
+   // Only this hard-coded public Google JWKS URL is fetched. This temporary
+   // diagnostic is removed after root cause analysis; no tokens are involved.
+   const name=String(e?.name||"Unknown").replace(/[^A-Za-z]/g,"").slice(0,30);
+   const hint=String(e?.message||"").replace(/https?:\/\/[^\s]+/g,"[public-url]")
+     .replace(/[^A-Za-z0-9\s:.'()\-\[\]]/g,"").slice(0,140);
+   return reply(503,"FETCH_THROWN",cors,{exception:name,messageHint:hint});
+ }
  if(!fetched?.ok)return reply(503,"HTTP_NOT_OK",cors,{upstreamStatus:Number(fetched?.status)||0});
  let body;
  try{body=await fetched.json();}catch{return reply(503,"JWKS_JSON_INVALID",cors);}
