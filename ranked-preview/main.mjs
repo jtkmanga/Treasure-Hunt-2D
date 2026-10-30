@@ -1,5 +1,6 @@
-import {TICK_MS,MAX_TICKS,createRunSession,advanceRunTick,replayRun} from "./run-engine.mjs";
-import {createPixelArt,drawPixelWorld,drawMiniMap} from "./pixel-art.mjs";
+import {TICK_MS,MAX_TICKS,createRunSessionV6 as createRunSession,advanceRunTick,replayRunV6 as replayRun} from "./run-engine.mjs";
+import {createPixelArt} from "./pixel-art.mjs";
+import {drawCohesiveWorld as drawPixelWorld,drawCohesiveMiniMap as drawMiniMap} from "./cohesive-world.mjs";
 const el=id=>document.getElementById(id);
 const world=el("world"),ctx=world.getContext("2d",{alpha:false}),mini=el("mini").getContext("2d");
 if(!ctx||!mini)throw Error("Canvas 2D unsupported");
@@ -38,7 +39,7 @@ function paintAreaThumbnail(){
  g.fillStyle="#ffda6b";g.fillRect(28,54,5,7);
 }
 function updateHud(){
- el("score").textContent=String(session.score);el("coins").textContent=String(session.coinsCollected);
+ el("score").textContent=String(session.score);el("coins").textContent=String(session.coinsCollected)+" / "+session.map.coins.length;
  el("level").textContent="📍 "+LEVELS[level];el("region").textContent="พื้นที่ "+(level+1)+" · ป่าเริ่มต้น";
  if(areaLevel!==level){areaLevel=level;paintAreaThumbnail();}
  const ms=running&&!paused?Math.max(0,Math.min(remainingMs,deadline-performance.now())):remainingMs;
