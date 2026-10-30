@@ -209,7 +209,7 @@ export function drawCohesiveWorld(g,session,art,width,height,display,now=0){
   if(cell(map.bridge,x,y))bridgePiece(g,map,art,x,y,x*T-cameraX,y*T-cameraY);
  const coinsByRow=new Map();
  for(const coin of map.coins){
-  if(coin.nextTick>session.tick)continue;
+  if(coin.respawnAt>Date.now()||coin.nextTick>session.tick)continue;
   const row=Math.floor(coin.y);
   if(!coinsByRow.has(row))coinsByRow.set(row,[]);
   coinsByRow.get(row).push(coin);
@@ -240,11 +240,16 @@ export function drawCohesiveWorld(g,session,art,width,height,display,now=0){
   }
  }
 }
+// Cache static 100x100 map pixels; only chest/player markers are dynamic.
+let cachedMiniMap=null;
 export function drawCohesiveMiniMap(g,map,player){
  const w=g.canvas.width,h=g.canvas.height,n=map.tiles.length;
  g.imageSmoothingEnabled=false;g.clearRect(0,0,w,h);
  const cellSize=Math.min(w,h)/n,ox=(w-n*cellSize)/2,oy=(h-n*cellSize)/2;
- for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+ if(!cachedMiniMap||cachedMiniMap.map!==map||cachedMiniMap.w!==w||cachedMiniMap.h!==h){
+  const layer=document.createElement("canvas");layer.width=w;layer.height=h;
+  const g=layer.getContext("2d");g.imageSmoothingEnabled=false;
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++){
   const tile=map.tiles[y][x],wet=cell(map.water,x,y);
   g.fillStyle=wet?"#1877a7":tile===1?"#194e33":tile===2?"#858778":cell(map.path,x,y)?"#c39b55":"#73af51";
   g.fillRect(Math.floor(ox+x*cellSize),Math.floor(oy+y*cellSize),Math.ceil(cellSize),Math.ceil(cellSize));
@@ -252,7 +257,10 @@ export function drawCohesiveMiniMap(g,map,player){
    g.fillStyle="#c79553";
    g.fillRect(Math.floor(ox+x*cellSize),Math.floor(oy+y*cellSize),Math.ceil(cellSize),Math.ceil(cellSize));
   }
+  }
+  cachedMiniMap={map,w,h,layer};
  }
+ g.drawImage(cachedMiniMap.layer,0,0);
  if(!map.chest.claimed){
   g.fillStyle="#ffe055";g.fillRect(ox+map.chest.x*cellSize-3,oy+map.chest.y*cellSize-3,6,6);
  }
