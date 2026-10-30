@@ -65,7 +65,7 @@ test("visual render is read-only: map, pickups and score never modified by drawi
   bush:Array(4).fill(placeholder),flower:Array(3).fill(placeholder),
   mushroom:placeholder,coin:placeholder,chest:placeholder,hero:placeholder,
   scenery:{cliff:placeholder,lilypad:placeholder,waterfall:placeholder,p:{wood:["#1","#2","#3","#4","#5"]}},
-  p:{water:["#1","#2","#3","#4"],grass:["#1","#2","#3","#4"],path:["#1","#2","#3","#4"]}
+  p:{water:["#1","#2","#3","#4"],grass:["#1","#2","#3","#4"],path:["#1","#2","#3","#4"],leaf:["#1","#2","#3","#4","#5","#6"]}
  };
  drawCohesiveWorld(g,session,art,1200,720,{...m.spawn},2000);
  drawCohesiveMiniMap(g,m,m.spawn);
