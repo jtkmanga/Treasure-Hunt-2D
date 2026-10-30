@@ -81,33 +81,50 @@ function terrainTile(g,map,art,x,y,sx,sy,now){
 }
 function bridgePiece(g,map,art,x,y,sx,sy){
  if(!cell(map.bridge,x,y))return;
- const p=art.scenery.p.wood;
+ const wood=art.scenery.p.wood,seed=H(x,y,18);
  const horizontal=cell(map.bridge,x-1,y)||cell(map.bridge,x+1,y);
- // Crossing is actually tile 0 in the map shared with collision logic.
  if(horizontal){
-  rect(g,sx,sy+T*.2,T+1,T*.62,p[0]);
+  rect(g,sx,sy+T*.19,T+1,T*.66,"#2c2119");
   for(let i=0;i<6;i++){
-   rect(g,sx+i*T/6,sy+T*.24,T/6-1,T*.54,p[2]);
-   rect(g,sx+i*T/6+2,sy+T*.27,2,T*.42,p[3]);
+   const xx=sx+i*T/6,k=H(i,x,y);
+   rect(g,xx,sy+T*.23,T/6-1,T*.54,wood[2+k%2]);
+   rect(g,xx+2,sy+T*.28,T/6-3,T*.06,wood[3]);
+   rect(g,xx+3,sy+T*.63,T/6-4,1,wood[1]);
   }
-  rect(g,sx,sy+T*.16,T+1,3,p[3]);
-  rect(g,sx,sy+T*.8,T+1,3,p[1]);
+  // Directionally continuous rail, posts only at actual ends.
+  rect(g,sx,sy+T*.15,T+1,3,wood[3]);
+  rect(g,sx,sy+T*.79,T+1,4,wood[1]);
   if(!cell(map.bridge,x-1,y)){
-   rect(g,sx,sy+T*.02,5,T*.92,p[1]);
-   rect(g,sx+1,sy,3,6,p[4]);
+   rect(g,sx,sy+T*.02,6,T*.96,wood[1]);
+   rect(g,sx+1,sy,4,6,wood[4]);
   }
   if(!cell(map.bridge,x+1,y)){
-   rect(g,sx+T-5,sy+T*.02,5,T*.92,p[1]);
-   rect(g,sx+T-4,sy,3,6,p[4]);
+   rect(g,sx+T-6,sy+T*.02,6,T*.96,wood[1]);
+   rect(g,sx+T-5,sy,4,6,wood[4]);
   }
  }else{
-  rect(g,sx+T*.2,sy,T*.6,T+1,p[0]);
+  rect(g,sx+T*.17,sy,T*.67,T+1,"#2c2119");
   for(let i=0;i<6;i++){
-   rect(g,sx+T*.25,sy+i*T/6,T*.49,T/6-1,p[2]);
-   rect(g,sx+T*.28,sy+i*T/6+2,T*.43,2,p[4]);
+   const yy=sy+i*T/6,k=H(i,y,x);
+   rect(g,sx+T*.23,yy,T*.55,T/6-1,wood[2+k%2]);
+   rect(g,sx+T*.25,yy+2,T*.49,2,wood[3]);
   }
-  rect(g,sx+T*.16,sy,3,T+1,p[3]);
-  rect(g,sx+T*.82,sy,3,T+1,p[1]);
+  rect(g,sx+T*.13,sy,4,T+1,wood[3]);
+  rect(g,sx+T*.82,sy,4,T+1,wood[1]);
+  if(!cell(map.bridge,x,y-1)){
+   rect(g,sx+T*.12,sy,T*.74,5,wood[1]);
+   rect(g,sx+T*.12,sy-3,5,9,wood[4]);
+   rect(g,sx+T*.78,sy-3,5,9,wood[4]);
+  }
+  if(!cell(map.bridge,x,y+1)){
+   rect(g,sx+T*.12,sy+T-5,T*.74,5,wood[1]);
+   rect(g,sx+T*.12,sy+T-5,5,9,wood[4]);
+   rect(g,sx+T*.78,sy+T-5,5,9,wood[4]);
+  }
+ }
+ if(seed%2===0){
+  rect(g,sx+T*.41,sy+T*.33,4,2,wood[4]);
+  rect(g,sx+T*.53,sy+T*.48,3,2,wood[0]);
  }
 }
 // Decorative sprites are always derived from actual collision tiles.
@@ -164,12 +181,20 @@ function obstacle(g,map,art,x,y,sx,sy,now=0){
 }
 function shrineProps(g,map,art,cameraX,cameraY,now){
  const c=map.chest,sx=c.x*T-cameraX,sy=c.y*T-cameraY;
- if(sx< -100||sy< -110||sx>g.canvas.width*2||sy>g.canvas.height*2)return;
- // Small glowing ground halo and torches, decoration only.
- g.fillStyle="#ffb93b38";g.beginPath();g.ellipse(sx,sy-7,T*.85,T*.45,0,0,Math.PI*2);g.fill();
- const flame=(x,y)=>{const pulse=2+Math.floor(Math.sin(now*.009+x)*1.5);
-  rect(g,x-3,y-7,6,11,"#5d3821");rect(g,x-2,y-14-pulse,4,9+pulse,"#ffb737");rect(g,x-1,y-12-pulse,2,8+pulse,"#fff9aa");};
- flame(sx-T*.72,sy-T*.33);flame(sx+T*.72,sy-T*.33);
+ // Decorative safe-zone pedestal: it does not make a new blocking tile.
+ rect(g,sx-T*.59,sy-T*.06,T*1.18,T*.29,"#534e3b");
+ rect(g,sx-T*.6,sy-T*.15,T*1.2,6,"#b9a17a");
+ rect(g,sx-T*.52,sy-T*.19,T*1.04,4,"#d5c390");
+ rect(g,sx-T*.56,sy+T*.14,T*1.12,3,"#283c33");
+ const pulse=(Math.sin(now*.004)+1)*.5;
+ rect(g,sx-T*.36,sy-T*.43,T*.7,4,pulse>.5?"#ffcd6c":"#c29e45");
+ const flame=(x,y)=>{
+  const n=2+Math.floor(Math.sin(now*.009+x)*1.5);
+  rect(g,x-5,y-7,10,9,"#393027");rect(g,x-4,y-11,8,4,"#e8b555");
+  rect(g,x-3,y-17-n,6,9+n,"#ef7a2e");
+  rect(g,x-1,y-14-n,3,8+n,"#fff7ac");
+ };
+ flame(sx-T*.73,sy-T*.23);flame(sx+T*.73,sy-T*.23);
 }
 export function drawCohesiveWorld(g,session,art,width,height,display,now=0){
  const map=session.map,cameraX=display.x*T-width/2,cameraY=display.y*T-height/2;
