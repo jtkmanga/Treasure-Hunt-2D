@@ -33,7 +33,11 @@
   - **Coin collection ×2**: for each valid map coin pickup award 2 coins rather than 1, not multiplier on chest rewards.
   - **Run speed ×2**: 2× movement speed while active, server-validated.
 - Avoid introducing extra coin types or point currencies.
-- Product price, duration, stacking/renewal policy, and purchasability need product settings before enabling permanent purchases. UI may show disabled/demo cards pending configuration; do not claim a purchase succeeded without persistent server confirmation.
+- **Approved real-money prices and duration:** Coin collection ×2 = **20 THB / 24 hours**; Run speed ×2 = **10 THB / 24 hours**. Show amounts in THB on the store cards, not in in-game coins.
+- Start the 24-hour period only after the server verifies a successful payment and activates the entitlement. Store `activatedAt` and `expiresAt = activatedAt + 86,400,000 ms` as authoritative UTC timestamps. Display remaining duration in the UI. Expire automatically even when a player is offline.
+- For repeat purchases while an item is active, use **duration extension** (append another 24 hours to the existing expiry), never stack to ×4. Each purchase has its own unique payment transaction ID.
+- Validate Thai QR/Slip2Go payments on the backend with amount, recipient, transaction ID and replay prevention, and tie each payment to a specific user, product and order. Never activate from client-side success or an uploaded slip alone. Do not enable paid checkout before production verification passes.
+- UI may display locked preview cards pending backend integration; do not claim a purchase succeeded without persistent server confirmation.
 - Explicit fairness note: leaderboard is boosted by paid/purchased power-ups. Show current effects and rules to all competitors.
 
 ## Deployment integrity
