@@ -9,6 +9,7 @@ on:
       - 'tests/forest-v8-sql.test.mjs'
       - 'db/forest-v8.sql'
       - '.github/workflows/forest-v8-preview.yml'
+      - 'scripts/build-forest-v8-standalone.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -25,6 +26,17 @@ jobs:
       - name: Verify V8 modules parse without browser
         run: |
           for f in forest-v8/*.mjs src/online/forest-contest-core.mjs; do node --check "$f"; done
+      - name: Build offline playable single-file game
+        run: |
+          python3 scripts/build-forest-v8-standalone.py
+          node --check build/forest-v8-bundle-check.js
+          test -s build/Treasure-Hunt-2D-Forest-V8-Playable.html
+      - name: Upload playable offline HTML for phones
+        uses: actions/upload-artifact@v4
+        with:
+          name: Treasure-Hunt-2D-Forest-V8-Playable-HTML
+          path: build/Treasure-Hunt-2D-Forest-V8-Playable.html
+          if-no-files-found: error
       - name: Pack isolated mobile preview without any backend credentials
         run: |
           mkdir -p site/forest-v8
@@ -41,3 +53,17 @@ jobs:
           name: Treasure-Hunt-2D-Forest-V8-Mobile
           path: Treasure-Hunt-2D-Forest-V8-Mobile.zip
           if-no-files-found: error
+
+      - name: Check whether preview deploy credentials are available
+        id: preview-credentials
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then echo "HAS_CLOUDFLARE_TOKEN=true" >> "$GITHUB_ENV"; else echo "Cloudflare token not configured; standalone HTML is still available."; fi
+      - name: Publish separate Cloudflare Pages preview (never production)
+        if: ${{ env.HAS_CLOUDFLARE_TOKEN == 'true' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 4cafc1910d08ee7c62dd4a1e2adb6e64
+        run: |
+          npx --yes wrangler@4 pages deploy forest-v8 --project-name=treasure-hunt-2d-jtk --branch=forest-v8-mobile-demo --commit-hash="${{ github.event.pull_request.head.sha || github.sha }}"
