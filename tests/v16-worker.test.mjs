@@ -6,7 +6,7 @@ import {verifyAppCheck} from '../src/v16-online/appcheck.mjs';
 if(!globalThis.crypto)globalThis.crypto=webcrypto;
 const base='https://game.test/api/v16/';
 function request(path,opts={}){return new Request(base+path,opts)}
-function settings(flag='false'){return {ENABLE_V16_WRITES:flag,ALLOWED_ORIGIN:'https://game.test'}}
+function settings(flag='false'){return {ENABLE_V16_WRITES:flag,ENABLE_V16_READS:'true',ALLOWED_ORIGIN:'https://game.test'}}
 test('Online write routes fail closed by default',async()=>{
  const r=await handleV16Request(request('collect?scope=free',{method:'POST',body:'{}'}),settings());
  assert.equal(r.status,403);assert.match(await r.text(),/not enabled/);
