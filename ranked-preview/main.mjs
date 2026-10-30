@@ -127,6 +127,9 @@ joystick.addEventListener("pointerdown",e=>{
 joystick.addEventListener("pointermove",e=>{if(joyPointer===e.pointerId)moveJoy(e);});
 for(const type of ["pointerup","pointercancel","lostpointercapture"])
  joystick.addEventListener(type,e=>{if(joyPointer===e.pointerId){joyPointer=null;setJoy(0,0);}});
+// UI-only preview: do not activate paid perks or claim payment success.
+el("shop-open").addEventListener("click",()=>{el("shop-panel").hidden=false;clearControls();});
+el("shop-close").addEventListener("click",()=>{el("shop-panel").hidden=true;});
 el("collect").addEventListener("pointerdown",e=>{
  if(!running||paused)return;e.preventDefault();
  collectPending=true;el("collect").classList.add("pressed");
