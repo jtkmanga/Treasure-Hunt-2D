@@ -22,7 +22,7 @@ test('V16 client uses verified token callbacks, HTTPS and Free/VIP isolation',as
  assert.ok(calls.every(x=>x.url.includes('scope=free')));
  assert.equal(calls[0].options.headers.authorization,'Bearer firebase-auth-token');
  assert.equal(calls[0].options.headers['x-firebase-appcheck'],'app-check-token');
- assert.throws(()=>client.move(200,0),/Invalid analog/);
+ await assert.rejects(()=>client.move(200,0),/Invalid analog/);
 });
 test('V16 pickup retries the same requestId and sequence on transient network error',async()=>{
  let failFirst=true;const claims=[];
