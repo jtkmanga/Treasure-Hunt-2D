@@ -88,6 +88,6 @@ test("same 900-tick replay, illegal frame rejection; no score write, payment, au
  assert.match(renderer,/map\.bridge/);
  assert.match(renderer,/map\.path/);
  assert.match(renderer,/map\.water/);
- assert.doesNotMatch(renderer,/fetch\s*\(|XMLHttpRequest|WebSocket|Image\s*\(|drawImage\s*\(\s*reference|\.png|\.jpg|sendBeacon/);
+ assert.doesNotMatch(renderer,/fetch\s*\(|XMLHttpRequest|WebSocket|new\s+Image\s*\(|drawImage\s*\(\s*reference|\.png|\.jpg|sendBeacon/);
  assert.doesNotMatch(main,/fetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon/);
 });
