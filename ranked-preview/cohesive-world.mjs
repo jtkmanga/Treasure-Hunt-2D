@@ -7,53 +7,76 @@ const H=(x,y,s=0)=>{let v=Math.imul(x+71,374761393)^Math.imul(y+139,668265263)^M
 const cell=(a,x,y)=>a?.[y]?.[x]??false;
 function drawImage(g,img,x,y,w,h){g.drawImage(img,Math.round(x),Math.round(y),Math.ceil(w),Math.ceil(h));}
 function rect(g,x,y,w,h,color){g.fillStyle=color;g.fillRect(Math.round(x),Math.round(y),Math.ceil(w),Math.ceil(h));}
+// Natural shore pixels are still VISUAL ONLY: physics uses map.tiles === 0.
+// Small broken bank silhouettes keep the river from resembling blue rectangles.
+function shoreline(g,map,art,x,y,sx,sy,seed){
+ const north=cell(map.water,x,y-1),south=cell(map.water,x,y+1);
+ const west=cell(map.water,x-1,y),east=cell(map.water,x+1,y);
+ const c=art.p.water,earth=art.p.path;
+ const bank="#416e46",edge="#92b76a";
+ for(let i=0;i<10;i++){
+  const n=H(x*19+i,y*11-i,68);
+  const offset=(n%4),v=i*5;
+  if(!west){
+   rect(g,sx,sy+v,3+offset,5,bank);
+   if(i%3===0)rect(g,sx+3+offset,sy+v+1,2,2,edge);
+   if(i%2===0)rect(g,sx+5+offset,sy+v+2,2,1,c[3]);
+  }
+  if(!east){
+   rect(g,sx+T-5-offset,sy+v,6+offset,5,bank);
+   if(i%3===1)rect(g,sx+T-7-offset,sy+v+1,2,2,edge);
+   if(i%2===0)rect(g,sx+T-9-offset,sy+v+2,2,1,c[3]);
+  }
+  if(!north){
+   rect(g,sx+v,sy,5,4+offset,earth[0]);
+   if(i%2===0)rect(g,sx+v+1,sy+5+offset,4,1,c[3]);
+  }
+  if(!south){
+   rect(g,sx+v,sy+T-4-offset,5,5+offset,bank);
+   if(i%2===0)rect(g,sx+v+1,sy+T-7-offset,4,1,c[3]);
+  }
+ }
+}
 function terrainTile(g,map,art,x,y,sx,sy,now){
  const tile=map.tiles[y]?.[x],seed=H(x,y,17);
- const inside=tile!==undefined;
- const wet=inside&&cell(map.water,x,y);
+ const inside=tile!==undefined,wet=inside&&cell(map.water,x,y);
  const bridged=inside&&cell(map.bridge,x,y);
- const road=inside&&cell(map.path,x,y);
- const wild=!inside;
- const terrain=wet?art.water[seed%art.water.length]:art.grass[seed%art.grass.length];
- drawImage(g,terrain,sx,sy,T+1,T+1);
+ const road=inside&&cell(map.path,x,y),wild=!inside;
+ drawImage(g,wet?art.water[seed%art.water.length]:art.grass[seed%art.grass.length],sx,sy,T+1,T+1);
  if(wet){
-  // Preserve continuous river water even under traversable wooden bridges.
-  if(!bridged){
-   const moving=Math.floor(now/240),n=H(x,y,moving);
-   const c=art.p.water;
-   rect(g,sx+3+(n%17),sy+9+(n>>>5)%25,9,2,c[2]);
-   rect(g,sx+8,sy+3+(n>>>7)%33,7,1,c[3]);
+  const moving=Math.floor(now/340);
+  if(!bridged&&seed%3===0){
+   const n=H(x,y,moving);
+   rect(g,sx+6+(n%13),sy+6+(n>>>4)%27,11,2,art.p.water[2]);
+   rect(g,sx+9+(n%9),sy+12+(n>>>7)%19,5,1,art.p.water[3]);
   }
-  const north=cell(map.water,x,y-1),south=cell(map.water,x,y+1);
-  const west=cell(map.water,x-1,y),east=cell(map.water,x+1,y);
-  const foam=art.p.water[3];
-  if(!west)rect(g,sx,sy,3,T,foam);
-  if(!east)rect(g,sx+T-3,sy,3,T,foam);
-  if(!north)rect(g,sx,sy, T,2,"#8ebea4");
-  if(!south)rect(g,sx,sy+T-3,T,3,foam);
+  shoreline(g,map,art,x,y,sx,sy,seed);
  }
  if(road&&!wet&&tile===0){
-  // Neighbor-aware dirt road surface: continuous through adjacent path tiles,
-  // with natural grass on the outer banks. Never a separate image collage.
-  const n=cell(map.path,x,y-1),s=cell(map.path,x,y+1);
-  const w=cell(map.path,x-1,y),e=cell(map.path,x+1,y);
-  const dirt=art.p.path,variant=seed%4;
-  const pad=8+seed%4;
-  const left=w?0:pad,right=e?T:T-pad,top=n?0:pad,bottom=s?T:T-pad;
-  rect(g,sx+left,sy+top,right-left,bottom-top,dirt[variant]);
-  for(let i=0;i<17;i++){
-   const k=H(x*19+i,y*23+i,10);
-   const px=left+(k%Math.max(1,right-left)),py=top+((k>>>7)%Math.max(1,bottom-top));
-   rect(g,sx+px,sy+py,1+k%3,1,dirt[(k>>>10)%4]);
-  }
+  const mask=(cell(map.path,x,y-1)?1:0)
+    |(cell(map.path,x+1,y)?2:0)
+    |(cell(map.path,x,y+1)?4:0)
+    |(cell(map.path,x-1,y)?8:0);
+  // Organic path has rounded, grainy edges and is cached as a sprite.
+  if(art.trail)drawImage(g,art.trail[mask*4+(seed%4)],sx,sy,T,T);
+  else drawImage(g,art.path[seed%art.path.length],sx,sy,T,T);
+ }
+ if(!wet&&!road&&seed%6===0){
+  // Sparse moss / wild ground patches, not giant repeating square fills.
+  const color=art.p.grass[seed%4];
   for(let i=0;i<7;i++){
-   const k=H(x*8+i,y*9-i,9);
-   const py=(k>>>9)%T;
-   if(!w)rect(g,sx+left-2+(k%4),sy+py,3,2,art.p.grass[3]);
-   if(!e)rect(g,sx+right-2-(k%3),sy+py,3,2,art.p.grass[2]);
+   const n=H(x+i*7,y-i*4,44),px=n%38,py=(n>>>6)%35;
+   rect(g,sx+px,sy+py,2+n%5,2+(n>>>4)%2,color);
   }
  }
- // Boundary beyond 26x26 is matching forest, not an imported pixel-art panel.
+ if(!wet&&seed%29===0&&!road){
+  for(let i=0;i<3;i++){
+   const n=H(x+i,y,42),px=n%35,py=(n>>>4)%36;
+   rect(g,sx+px,sy+py,4,1,art.p.grass[3]);
+   rect(g,sx+px+2,sy+py-2,1,4,art.p.leaf[2]);
+  }
+ }
+ // Outside uses the same local texture family, no photographic reference panel.
  if(wild&&seed%11===0)drawImage(g,art.bush[seed%art.bush.length],sx+T*.15,sy+T*.39,T*.65,T*.44);
 }
 function bridgePiece(g,map,art,x,y,sx,sy){
