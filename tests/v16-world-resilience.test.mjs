@@ -52,7 +52,7 @@ test('room storage survives DO reconstruction and one coin cannot credit twice',
  assert.equal((await picked.json()).result.amount,1);
  const b=objectHarness(store);await b.ready();
  assert.equal(b.object.room.scores.get('alice'),1);
- const view=await b.object.fetch(internal('world','','free1',{},1));
+ const view=await b.object.fetch(internal('world','','free1',{},b.object.room.version));
  const payload=await view.json();assert.equal(payload.unchanged,true);
  assert.equal(payload.version,b.object.room.version);
  const joined=await b.object.fetch(internal('join','alice','free1',{name:'Alice'}));
