@@ -6,7 +6,7 @@ Player screenshots of V5 show a severe image seam: the illustrated concept left 
 
 ## Implementation
 
-- Single 26×26 deterministic canonical map built by the shared score engine `src/online/run-engine.mjs`: `tiles`, `water`, `path` and `bridge` matrices, 82 reachable coin sites, spawn at (12.5,13.5), treasure shrine at (22.5,7.5). Seed gives variation in natural obstacles without destroying the designed path/river/bridge network.
+- Versioned 26×26 deterministic V6 canonical map (makeMapV6) built by the shared score engine `src/online/run-engine.mjs`: `tiles`, `water`, `path` and `bridge` matrices, 82 reachable coin sites, spawn at (12.5,13.5), treasure shrine at (22.5,7.5). Seed gives variation in natural obstacles without destroying the designed path/river/bridge network.
 - Draws continuous winding dirt paths and the blue river from those matrices. Bridges are rendered **only over water tiles with traversable (0) authoritative collision**, so visual crossings match server movement. Trees and boulders only on collision tiles 1 and 2. The minimap uses that exact same map.
 - The forest and water outside the playable boundary use the same original procedural pixel sprite set; there is **no external reference image or background image overlay**, no mismatched left/right images.
 - Foreground sorting by world y allows the player and collectibles to appear in a scene built from one coherent map.
@@ -24,3 +24,6 @@ Player screenshots of V5 show a severe image seam: the illustrated concept left 
 ## How to install
 
 Download the GitHub Actions artifact `Treasure-Hunt-2D-V6-Cohesive-Playable-Map` and upload it to the existing `treasure-hunt-2d-jtk` Cloudflare Pages project as a new Direct Upload deployment. Open `/ranked-preview/` with landscape orientation.
+
+### Compatibility guard
+Legacy `makeMap`, `createRunSession` and `replayRun` remain byte-compatible with the original test fixtures and any historical saved run IDs. V6 uses `makeMapV6`, `createRunSessionV6` and `replayRunV6` explicitly. Do not replay any old run as V6 or vice versa.

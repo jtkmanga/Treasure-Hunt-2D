@@ -1,4 +1,4 @@
-import {TICK_MS,MAX_TICKS,createRunSession,advanceRunTick,replayRun} from "./run-engine.mjs";
+import {TICK_MS,MAX_TICKS,createRunSessionV6 as createRunSession,advanceRunTick,replayRunV6 as replayRun} from "./run-engine.mjs";
 import {createPixelArt} from "./pixel-art.mjs";
 import {drawCohesiveWorld as drawPixelWorld,drawCohesiveMiniMap as drawMiniMap} from "./cohesive-world.mjs";
 const el=id=>document.getElementById(id);
