@@ -4,6 +4,7 @@
 import {verifyFirebaseIdToken} from '../online/firebase-auth.mjs';
 import {verifyAppCheck} from './appcheck.mjs';
 import {V16Room} from './room.mjs';
+import {periodFor} from './periods.mjs';
 const SCOPES={free:'free1',vip:'vip1',free1:'free1',vip1:'vip1'};
 const json=(obj,status=200,headers={})=>new Response(JSON.stringify(obj),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff',...headers}});
 function cors(request,env){const origin=request.headers.get('origin');
@@ -67,6 +68,9 @@ export class V16WorldRoom {
    if(!['free1','vip1'].includes(scope))return json({error:'Invalid internal scope'},403);
    if(!this.room)this.room=new V16Room(scope);
    if(this.room.scope!==scope)return json({error:'Scope mismatch'},403);
+   // One alarm per room at the next Bangkok season boundary.
+   if(this.state.storage.getAlarm&&this.state.storage.setAlarm&&await this.state.storage.getAlarm()===null)
+    await this.state.storage.setAlarm(Date.parse(periodFor(scope,Date.now()).resetsAt));
    const uid=req.headers.get('x-internal-uid');const now=Date.now();const action=new URL(req.url).pathname.slice(1);
    try{
     if(action==='world'){
@@ -92,6 +96,18 @@ export class V16WorldRoom {
     if(action==='join'||action==='collect')await this.state.storage.put('v16-state',this.room.save());
     return json({ok:true,result});
    }catch(e){return json({error:String(e.message||e).slice(0,110)},400)}
+  };
+  const next=this.queue.then(task,task);this.queue=next.then(()=>{},()=>{});return next;
+ }
+ async alarm(){
+  const task=async()=>{
+   if(!this.room)return;
+   const now=Date.now(),previous=this.room.version;
+   this.room.rollover(now);
+   // Durable Object alarm may be retried; rollover is idempotent by period.
+   if(previous!==this.room.version)await this.state.storage.put('v16-state',this.room.save());
+   if(this.state.storage.setAlarm)
+    await this.state.storage.setAlarm(Date.parse(periodFor(this.room.scope,now).resetsAt));
   };
   const next=this.queue.then(task,task);this.queue=next.then(()=>{},()=>{});return next;
  }
