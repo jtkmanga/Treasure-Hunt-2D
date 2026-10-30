@@ -161,7 +161,6 @@ el("shop-close").addEventListener("click",()=>{el("shop-panel").hidden=true;});
 el("leaderboard-open").addEventListener("click",()=>{updateHud();modalShow("leaderboard-panel");});
 el("leaderboard-close").addEventListener("click",()=>{el("leaderboard-panel").hidden=true;});
 el("reward-close").addEventListener("click",()=>{el("reward-panel").hidden=true;});
-let lastMini=0;
 function paint(now){
  // V7 sprite art and smooth camera are preserved; only the physics/map changed.
  if(now-lastPaint<30){requestAnimationFrame(paint);return;}
