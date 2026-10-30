@@ -1,0 +1,46 @@
+name: V7 detailed original pixel forest - mobile ZIP
+on:
+  push:
+    branches: [feature/forest-polish-v7-20261030]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify-and-pack:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Full auth, score security, map gameplay regression
+        run: npm test
+      - name: Validate all modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in src/online/run-engine.mjs ranked-preview/main.mjs ranked-preview/cohesive-world.mjs ranked-preview/pixel-art.mjs ranked-preview/scenic-details.mjs; do
+            node --check "$script"
+          done
+      - name: Package all static assets keeping original V1 and Login
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p site/ranked-preview site/login site/src/client
+          cp index.html site/index.html
+          cp login/index.html login/login.mjs site/login/
+          cp src/client/firebase-login-core.mjs src/client/appcheck-prep.mjs site/src/client/
+          cp ranked-preview/index.html ranked-preview/main.mjs ranked-preview/pixel-art.mjs ranked-preview/scenic-details.mjs ranked-preview/cohesive-world.mjs site/ranked-preview/
+          cp src/online/run-engine.mjs site/ranked-preview/run-engine.mjs
+          cmp src/online/run-engine.mjs site/ranked-preview/run-engine.mjs
+          test "$(find site -type f | wc -l)" -eq 11
+          ! find site -type f | grep -E '(\.env|private-key|service-account|firebase-config)'
+          ! grep -E 'fetch\(|WebSocket|sendBeacon|XMLHttpRequest|localStorage' site/ranked-preview/cohesive-world.mjs
+          ! grep -E 'fetch\(|WebSocket|sendBeacon|XMLHttpRequest|localStorage' site/ranked-preview/main.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Treasure-Hunt-2D-Forest-Polish-V7-Mobile
+          path: site/
+          retention-days: 14
+          if-no-files-found: error

@@ -54,6 +54,63 @@ function pathTile(p,variant){return sprite(32,32,g=>{
   px(g,x,y,1+v%3,1,p.path[(v>>>10)%4]);
  }
 });}
+// V7: transparent, seamlessly connected dirt trails. A 4-bit N/E/S/W
+// connectivity mask avoids the square checkerboard visible in the V6 photos.
+// Pre-render 64 variations once; never rasterize 2,000 pixels per frame.
+function trailOverlay(p,mask,variant){
+ return sprite(43,43,g=>{
+  const inside=(x,y,margin=0)=>{
+   const cx=21,cy=21,noise=((hash(Math.floor(x/4),Math.floor(y/4),variant)%5)-2)*.55;
+   const radius=13+noise+margin;
+   const center=(x-cx)*(x-cx)+(y-cy)*(y-cy)<radius*radius;
+   const n=(mask&1)&&y<=cy&&Math.abs(x-cx)<11+noise+margin;
+   const e=(mask&2)&&x>=cx&&Math.abs(y-cy)<11+noise+margin;
+   const south=(mask&4)&&y>=cy&&Math.abs(x-cx)<11+noise+margin;
+   const w=(mask&8)&&x<=cx&&Math.abs(y-cy)<11+noise+margin;
+   return center||n||e||south||w;
+  };
+  for(let y=0;y<43;y+=2)for(let x=0;x<43;x+=2){
+   if(!inside(x,y,2))continue;
+   const n=hash(x+variant*9,y,23);
+   if(!inside(x,y))px(g,x,y,2,2,p.path[0]);
+   else{
+    px(g,x,y,2,2,p.path[1+(n%3)]);
+    if(n%13===0)px(g,x,y,2,1,p.path[0]);
+    if(n%23===0)px(g,x+1,y,1,1,"#f0d392");
+   }
+  }
+  for(let i=0;i<11;i++){
+   const n=hash(i,variant,mask),x=n%41,y=(n>>>7)%41;
+   if(inside(x,y))px(g,x,y,1+n%2,1,p.path[(n>>>4)%4]);
+  }
+ });
+}
+// V7: pine silhouettes introduce a second tree species and varied height.
+// Leaves and trunk still represent the SAME obstacle tile as before.
+function pineSprite(p,variant){
+ return sprite(96,118,g=>{
+  const shades=p.leaf,shift=variant%4;
+  px(g,17,100,62,6,"#08271990");
+  px(g,43,63,15,39,p.trunk[0]);px(g,47,65,7,34,p.trunk[1]);
+  px(g,44,96,5,5,p.trunk[2]);
+  for(let layer=0;layer<4;layer++){
+   const y=7+layer*18,half=16+layer*7;
+   for(let yy=0;yy<34;yy+=3){
+    const wide=Math.round(half*yy/34);
+    for(let xx=-wide;xx<=wide;xx+=3){
+     const n=hash(xx+layer*9,yy,variant),fx=48+xx+((n%3)-1);
+     px(g,fx,y+yy,4,3,shades[Math.min(5,(n%4)+(yy<12?2:0))]);
+     if(n%9===0)px(g,fx,y+yy,3,1,shades[5]);
+    }
+   }
+   px(g,48-half,y+30,half*2,4,shades[0]);
+  }
+  for(let i=0;i<28;i++){
+   const n=hash(i,shift,48),fx=20+n%55,fy=9+((n>>>8)%77);
+   if(n%2===0)px(g,fx,fy,2,2,shades[4]);
+  }
+ });
+}
 function waterTile(p,variant){return sprite(32,32,g=>{
  px(g,0,0,32,32,p.water[0]);
  for(let y=0;y<32;y+=3){
@@ -171,11 +228,12 @@ export function createPixelArt(level=0){
  const grass=Array.from({length:16},(_,i)=>grassTile(p,i));
  const path=Array.from({length:8},(_,i)=>pathTile(p,i));
  const water=Array.from({length:5},(_,i)=>waterTile(p,i));
- const tree=Array.from({length:5},(_,i)=>treeSprite(p,i));
+ const tree=Array.from({length:12},(_,i)=>i<7?treeSprite(p,i):pineSprite(p,i));
+ const trail=Array.from({length:64},(_,i)=>trailOverlay(p,Math.floor(i/4),i%4));
  const rock=Array.from({length:4},(_,i)=>rockSprite(p,i));
  const bush=Array.from({length:4},(_,i)=>bushSprite(p,i));
  const flower=Array.from({length:3},(_,i)=>flowerSprite(p,i));
- return {p,scenery,grass,path,water,tree,rock,bush,flower,mushroom:mushroomSprite(),coin:coinSprite(),chest:chestSprite(),hero:heroSprite()};
+ return {p,scenery,grass,path,trail,water,tree,rock,bush,flower,mushroom:mushroomSprite(),coin:coinSprite(),chest:chestSprite(),hero:heroSprite()};
 }
 function isDirt(map,x,y){
  if(map.tiles[y]?.[x]!==0)return false;

@@ -5,7 +5,7 @@
 <meta name="theme-color" content="#071c20">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Treasure Hunt 2D — Unified Forest Map V6</title>
+<title>Treasure Hunt 2D — Forest Art Pass V7</title>
 <style>
 :root{color-scheme:dark;--gold:#ffe18c;--outline:#85e6cd;--ink:#061a1e}
 *{box-sizing:border-box}
@@ -95,6 +95,17 @@ select,.action{border:1px solid #9ecab8;background:#0c3c42;color:white;border-ra
 .collect{border-color:#fff1a6}
 @media(max-width:790px){.area-icon{display:none}.area{min-width:94px}.hud{gap:3px}.stat{min-width:57px}.minimap{width:clamp(68px,11vw,120px);height:clamp(49px,16vh,95px)}}
 @media(max-height:340px){.minimap{height:clamp(49px,20vh,75px)}.stat .symbol{font-size:18px}}
+
+/* V7 fantasy HUD finishing: lightweight highlights, no GPU-heavy blur filters. */
+.panel,.icon-button{box-shadow:0 2px 0 #22413d,0 7px 22px #00191bae,inset 0 1px 0 #f5fce86f;border-color:#c7f1e4}
+.area strong{letter-spacing:.12px;color:#ffedb9;text-shadow:0 2px 3px #0009}
+.area-icon{background:linear-gradient(160deg,#287759,#104039);border-color:#f2db9c}
+.stat .symbol{filter:drop-shadow(0 2px 4px #b77e206a)}
+.time-pill{border-color:#a8eed7}
+.minimap{border-color:#c9ead7;box-shadow:0 5px 19px #001b25a9,inset 0 1px 0 #fff7}
+#mini{border:1px solid #759886}
+.collect{background:linear-gradient(150deg,#fff8bf 1%,#fbe18d 28%,#ecc157 65%,#b97829);text-shadow:0 1px #fff3bc}
+.joy{box-shadow:0 0 0 4px #715e2a70,inset 0 0 0 5px #8fbeaa49,0 8px 22px #001c1b9e}
 </style>
 </head>
 <body>
@@ -116,7 +127,7 @@ select,.action{border:1px solid #9ecab8;background:#0c3c42;color:white;border-ra
  <div class="menu">
   <div style="font-size:27px">🌲 🗝️ 🪙</div>
   <h1>TREASURE HUNT 2D</h1>
-  <p>แผนที่ป่าผจญภัย V6 · เดินและเก็บเหรียญตามแมพเดียวกัน</p>
+  <p>Forest V7 · ป่าผจญภัยแบบกราฟิกชุดเดียวทั้งฉาก</p>
   <p class="small-note">ใช้จอยซ้ายเดิน / ปุ่มทองเก็บเหรียญ · คะแนนฝึกเท่านั้น ยังไม่มีการส่งข้อมูลจริง</p>
   <div class="choices"><label for="levelSelect">ด่าน:</label>
    <select id="levelSelect"><option value="0">🌲 ป่าลึกลับ</option><option value="1">🪨 ถ้ำทองคำ</option><option value="2">🏛️ วิหารโบราณ</option></select>

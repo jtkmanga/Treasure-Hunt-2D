@@ -7,123 +7,194 @@ const H=(x,y,s=0)=>{let v=Math.imul(x+71,374761393)^Math.imul(y+139,668265263)^M
 const cell=(a,x,y)=>a?.[y]?.[x]??false;
 function drawImage(g,img,x,y,w,h){g.drawImage(img,Math.round(x),Math.round(y),Math.ceil(w),Math.ceil(h));}
 function rect(g,x,y,w,h,color){g.fillStyle=color;g.fillRect(Math.round(x),Math.round(y),Math.ceil(w),Math.ceil(h));}
+// Natural shore pixels are still VISUAL ONLY: physics uses map.tiles === 0.
+// Small broken bank silhouettes keep the river from resembling blue rectangles.
+function shoreline(g,map,art,x,y,sx,sy,seed){
+ const north=cell(map.water,x,y-1),south=cell(map.water,x,y+1);
+ const west=cell(map.water,x-1,y),east=cell(map.water,x+1,y);
+ const c=art.p.water,earth=art.p.path;
+ const bank="#416e46",edge="#92b76a";
+ for(let i=0;i<10;i++){
+  const n=H(x*19+i,y*11-i,68);
+  const offset=(n%4),v=i*5;
+  if(!west){
+   rect(g,sx,sy+v,3+offset,5,bank);
+   if(i%3===0)rect(g,sx+3+offset,sy+v+1,2,2,edge);
+   if(i%2===0)rect(g,sx+5+offset,sy+v+2,2,1,c[3]);
+  }
+  if(!east){
+   rect(g,sx+T-5-offset,sy+v,6+offset,5,bank);
+   if(i%3===1)rect(g,sx+T-7-offset,sy+v+1,2,2,edge);
+   if(i%2===0)rect(g,sx+T-9-offset,sy+v+2,2,1,c[3]);
+  }
+  if(!north){
+   rect(g,sx+v,sy,5,4+offset,earth[0]);
+   if(i%2===0)rect(g,sx+v+1,sy+5+offset,4,1,c[3]);
+  }
+  if(!south){
+   rect(g,sx+v,sy+T-4-offset,5,5+offset,bank);
+   if(i%2===0)rect(g,sx+v+1,sy+T-7-offset,4,1,c[3]);
+  }
+ }
+}
 function terrainTile(g,map,art,x,y,sx,sy,now){
  const tile=map.tiles[y]?.[x],seed=H(x,y,17);
- const inside=tile!==undefined;
- const wet=inside&&cell(map.water,x,y);
+ const inside=tile!==undefined,wet=inside&&cell(map.water,x,y);
  const bridged=inside&&cell(map.bridge,x,y);
- const road=inside&&cell(map.path,x,y);
- const wild=!inside;
- const terrain=wet?art.water[seed%art.water.length]:art.grass[seed%art.grass.length];
- drawImage(g,terrain,sx,sy,T+1,T+1);
+ const road=inside&&cell(map.path,x,y),wild=!inside;
+ drawImage(g,wet?art.water[seed%art.water.length]:art.grass[seed%art.grass.length],sx,sy,T+1,T+1);
  if(wet){
-  // Preserve continuous river water even under traversable wooden bridges.
-  if(!bridged){
-   const moving=Math.floor(now/240),n=H(x,y,moving);
-   const c=art.p.water;
-   rect(g,sx+3+(n%17),sy+9+(n>>>5)%25,9,2,c[2]);
-   rect(g,sx+8,sy+3+(n>>>7)%33,7,1,c[3]);
+  const moving=Math.floor(now/340);
+  if(!bridged&&seed%3===0){
+   const n=H(x,y,moving);
+   rect(g,sx+6+(n%13),sy+6+(n>>>4)%27,11,2,art.p.water[2]);
+   rect(g,sx+9+(n%9),sy+12+(n>>>7)%19,5,1,art.p.water[3]);
   }
-  const north=cell(map.water,x,y-1),south=cell(map.water,x,y+1);
-  const west=cell(map.water,x-1,y),east=cell(map.water,x+1,y);
-  const foam=art.p.water[3];
-  if(!west)rect(g,sx,sy,3,T,foam);
-  if(!east)rect(g,sx+T-3,sy,3,T,foam);
-  if(!north)rect(g,sx,sy, T,2,"#8ebea4");
-  if(!south)rect(g,sx,sy+T-3,T,3,foam);
+  shoreline(g,map,art,x,y,sx,sy,seed);
  }
  if(road&&!wet&&tile===0){
-  // Neighbor-aware dirt road surface: continuous through adjacent path tiles,
-  // with natural grass on the outer banks. Never a separate image collage.
-  const n=cell(map.path,x,y-1),s=cell(map.path,x,y+1);
-  const w=cell(map.path,x-1,y),e=cell(map.path,x+1,y);
-  const dirt=art.p.path,variant=seed%4;
-  const pad=8+seed%4;
-  const left=w?0:pad,right=e?T:T-pad,top=n?0:pad,bottom=s?T:T-pad;
-  rect(g,sx+left,sy+top,right-left,bottom-top,dirt[variant]);
-  for(let i=0;i<17;i++){
-   const k=H(x*19+i,y*23+i,10);
-   const px=left+(k%Math.max(1,right-left)),py=top+((k>>>7)%Math.max(1,bottom-top));
-   rect(g,sx+px,sy+py,1+k%3,1,dirt[(k>>>10)%4]);
-  }
+  const mask=(cell(map.path,x,y-1)?1:0)
+    |(cell(map.path,x+1,y)?2:0)
+    |(cell(map.path,x,y+1)?4:0)
+    |(cell(map.path,x-1,y)?8:0);
+  // Organic path has rounded, grainy edges and is cached as a sprite.
+  if(art.trail)drawImage(g,art.trail[mask*4+(seed%4)],sx,sy,T,T);
+  else if(art.path)drawImage(g,art.path[seed%art.path.length],sx,sy,T,T);
+ }
+ if(!wet&&!road&&seed%6===0){
+  // Sparse moss / wild ground patches, not giant repeating square fills.
+  const color=art.p.grass[seed%4];
   for(let i=0;i<7;i++){
-   const k=H(x*8+i,y*9-i,9);
-   const py=(k>>>9)%T;
-   if(!w)rect(g,sx+left-2+(k%4),sy+py,3,2,art.p.grass[3]);
-   if(!e)rect(g,sx+right-2-(k%3),sy+py,3,2,art.p.grass[2]);
+   const n=H(x+i*7,y-i*4,44),px=n%38,py=(n>>>6)%35;
+   rect(g,sx+px,sy+py,2+n%5,2+(n>>>4)%2,color);
   }
  }
- // Boundary beyond 26x26 is matching forest, not an imported pixel-art panel.
+ if(!wet&&seed%29===0&&!road){
+  for(let i=0;i<3;i++){
+   const n=H(x+i,y,42),px=n%35,py=(n>>>4)%36;
+   rect(g,sx+px,sy+py,4,1,art.p.grass[3]);
+   rect(g,sx+px+2,sy+py-2,1,4,art.p.leaf[2]);
+  }
+ }
+ // Outside uses the same local texture family, no photographic reference panel.
  if(wild&&seed%11===0)drawImage(g,art.bush[seed%art.bush.length],sx+T*.15,sy+T*.39,T*.65,T*.44);
 }
 function bridgePiece(g,map,art,x,y,sx,sy){
  if(!cell(map.bridge,x,y))return;
- const p=art.scenery.p.wood;
+ const wood=art.scenery.p.wood,seed=H(x,y,18);
  const horizontal=cell(map.bridge,x-1,y)||cell(map.bridge,x+1,y);
- // Crossing is actually tile 0 in the map shared with collision logic.
  if(horizontal){
-  rect(g,sx,sy+T*.2,T+1,T*.62,p[0]);
+  rect(g,sx,sy+T*.19,T+1,T*.66,"#2c2119");
   for(let i=0;i<6;i++){
-   rect(g,sx+i*T/6,sy+T*.24,T/6-1,T*.54,p[2]);
-   rect(g,sx+i*T/6+2,sy+T*.27,2,T*.42,p[3]);
+   const xx=sx+i*T/6,k=H(i,x,y);
+   rect(g,xx,sy+T*.23,T/6-1,T*.54,wood[2+k%2]);
+   rect(g,xx+2,sy+T*.28,T/6-3,T*.06,wood[3]);
+   rect(g,xx+3,sy+T*.63,T/6-4,1,wood[1]);
   }
-  rect(g,sx,sy+T*.16,T+1,3,p[3]);
-  rect(g,sx,sy+T*.8,T+1,3,p[1]);
+  // Directionally continuous rail, posts only at actual ends.
+  rect(g,sx,sy+T*.15,T+1,3,wood[3]);
+  rect(g,sx,sy+T*.79,T+1,4,wood[1]);
   if(!cell(map.bridge,x-1,y)){
-   rect(g,sx,sy+T*.02,5,T*.92,p[1]);
-   rect(g,sx+1,sy,3,6,p[4]);
+   rect(g,sx,sy+T*.02,6,T*.96,wood[1]);
+   rect(g,sx+1,sy,4,6,wood[4]);
   }
   if(!cell(map.bridge,x+1,y)){
-   rect(g,sx+T-5,sy+T*.02,5,T*.92,p[1]);
-   rect(g,sx+T-4,sy,3,6,p[4]);
+   rect(g,sx+T-6,sy+T*.02,6,T*.96,wood[1]);
+   rect(g,sx+T-5,sy,4,6,wood[4]);
   }
  }else{
-  rect(g,sx+T*.2,sy,T*.6,T+1,p[0]);
+  rect(g,sx+T*.17,sy,T*.67,T+1,"#2c2119");
   for(let i=0;i<6;i++){
-   rect(g,sx+T*.25,sy+i*T/6,T*.49,T/6-1,p[2]);
-   rect(g,sx+T*.28,sy+i*T/6+2,T*.43,2,p[4]);
+   const yy=sy+i*T/6,k=H(i,y,x);
+   rect(g,sx+T*.23,yy,T*.55,T/6-1,wood[2+k%2]);
+   rect(g,sx+T*.25,yy+2,T*.49,2,wood[3]);
   }
-  rect(g,sx+T*.16,sy,3,T+1,p[3]);
-  rect(g,sx+T*.82,sy,3,T+1,p[1]);
+  rect(g,sx+T*.13,sy,4,T+1,wood[3]);
+  rect(g,sx+T*.82,sy,4,T+1,wood[1]);
+  if(!cell(map.bridge,x,y-1)){
+   rect(g,sx+T*.12,sy,T*.74,5,wood[1]);
+   rect(g,sx+T*.12,sy-3,5,9,wood[4]);
+   rect(g,sx+T*.78,sy-3,5,9,wood[4]);
+  }
+  if(!cell(map.bridge,x,y+1)){
+   rect(g,sx+T*.12,sy+T-5,T*.74,5,wood[1]);
+   rect(g,sx+T*.12,sy+T-5,5,9,wood[4]);
+   rect(g,sx+T*.78,sy+T-5,5,9,wood[4]);
+  }
+ }
+ if(seed%2===0){
+  rect(g,sx+T*.41,sy+T*.33,4,2,wood[4]);
+  rect(g,sx+T*.53,sy+T*.48,3,2,wood[0]);
  }
 }
-function obstacle(g,map,art,x,y,sx,sy){
+// Decorative sprites are always derived from actual collision tiles.
+// Trees, rocks, mushrooms, butterflies and grasses never add phantom walls.
+function obstacle(g,map,art,x,y,sx,sy,now=0){
  const tile=map.tiles[y]?.[x],seed=H(x,y);
  if(tile===1){
-  // Tree trunk = blocked tile. Canopy is tall, rendered in proper y-order.
-  drawImage(g,art.tree[seed%art.tree.length],sx-T*.53,sy-T*1.18,T*2.08,T*2.15);
+  // Forest species: varied crowns, sparse tall pines and anchored shadows.
+  const variant=(seed>>>4)%art.tree.length;
+  const scale=.86+(seed%5)*.065;
+  const w=T*2.02*scale,h=T*2.1*scale;
+  rect(g,sx+T*.09,sy+T*.77,T*.85,T*.15,"#061b1e53");
+  drawImage(g,art.tree[variant],sx+T*.5-w*.5,sy+T*.9-h*.9,w,h);
+  if(seed%17===0){
+   rect(g,sx+T*.83,sy+T*.66,5,2,"#d54842");
+   rect(g,sx+T*.85,sy+T*.63,2,2,"#ffebad");
+  }
  }else if(tile===2){
   const touchesWater=[[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>cell(map.water,x+dx,y+dy));
   if(touchesWater){
-   drawImage(g,art.scenery.cliff,sx,sy-T*.15,T+1,T*1.14);
-   rect(g,sx+T*.12,sy+T*.08,T*.14,2,"#b6b8a3");
+   drawImage(g,art.scenery.cliff,sx,sy-T*.18,T+1,T*1.19);
+   rect(g,sx+T*.12,sy+T*.1,T*.18,2,"#d1c3a1");
+   if(seed%6===0)rect(g,sx+T*.72,sy+T*.42,4,5,art.p.leaf[2]);
   }else{
-   drawImage(g,art.rock[seed%art.rock.length],sx+T*.05,sy+T*.1,T*.9,T*.92);
+   const scale=.70+(seed%4)*.08;
+   const shift=(seed>>>7)%9;
+   rect(g,sx+T*.1,sy+T*.78,T*.8,T*.13,"#0b292451");
+   drawImage(g,art.rock[(seed>>>3)%art.rock.length],sx+T*(1-scale)/2,sy+T*.08+shift*.25,T*scale,T*.95*scale);
+   if(seed%11===0)rect(g,sx+T*.67,sy+T*.53,4,3,art.p.leaf[3]);
   }
  }else if(tile===0&&!cell(map.bridge,x,y)){
-  // Small decorative flora never changes the movement map, unlike fake walls.
-  if(seed%16===0)drawImage(g,art.flower[seed%art.flower.length],sx+T*.17,sy+T*.45,T*.35,T*.36);
-  if(seed%27===0&&!cell(map.path,x,y))drawImage(g,art.bush[seed%art.bush.length],sx+T*.17,sy+T*.49,T*.56,T*.42);
-  if(seed%41===0)drawImage(g,art.mushroom,sx+T*.62,sy+T*.52,T*.29,T*.32);
+  // Wildflowers, mushrooms, saplings only decorate traversable ground.
+  if(seed%15===0)drawImage(g,art.flower[seed%art.flower.length],sx+T*.21,sy+T*.50,T*.35,T*.36);
+  if(seed%23===0&&!cell(map.path,x,y))drawImage(g,art.bush[seed%art.bush.length],sx+T*.17,sy+T*.54,T*.56,T*.37);
+  if(seed%39===0)drawImage(g,art.mushroom,sx+T*.62,sy+T*.55,T*.29,T*.32);
+  if(seed%71===0&&!cell(map.path,x,y)){
+   rect(g,sx+T*.57,sy+T*.52,3,2,"#ffe6bd");
+   rect(g,sx+T*.59,sy+T*.54,2,3,"#d74f66");
+   rect(g,sx+T*.62,sy+T*.51,3,2,"#ffe7d0");
+  }
  }else if(tile===3){
   if(seed%8===0)drawImage(g,art.scenery.lilypad,sx+T*.29,sy+T*.41,T*.47,T*.36);
   if(seed%27===0&&map.tiles[y-1]?.[x]===2){
-   const bob=Math.floor(Date.now()/180)%5;
+   const bob=Math.floor(now/180)%5;
    drawImage(g,art.scenery.waterfall,sx+T*.33,sy+bob,T*.43,T*.83);
   }
  }else if(tile===undefined){
-  // Beyond the border: keep decorative foliage consistent with the same scene.
-  if(seed%7<5)drawImage(g,art.tree[seed%art.tree.length],sx-T*.53,sy-T*1.18,T*2.08,T*2.15);
+  // Outside the protected map: same forest species, not a separate image.
+  if(seed%7<5){
+   const variant=(seed>>>5)%art.tree.length;
+   drawImage(g,art.tree[variant],sx-T*.46,sy-T*1.2,T*1.95,T*2.2);
+  }
  }
 }
 function shrineProps(g,map,art,cameraX,cameraY,now){
  const c=map.chest,sx=c.x*T-cameraX,sy=c.y*T-cameraY;
- if(sx< -100||sy< -110||sx>g.canvas.width*2||sy>g.canvas.height*2)return;
- // Small glowing ground halo and torches, decoration only.
- g.fillStyle="#ffb93b38";g.beginPath();g.ellipse(sx,sy-7,T*.85,T*.45,0,0,Math.PI*2);g.fill();
- const flame=(x,y)=>{const pulse=2+Math.floor(Math.sin(now*.009+x)*1.5);
-  rect(g,x-3,y-7,6,11,"#5d3821");rect(g,x-2,y-14-pulse,4,9+pulse,"#ffb737");rect(g,x-1,y-12-pulse,2,8+pulse,"#fff9aa");};
- flame(sx-T*.72,sy-T*.33);flame(sx+T*.72,sy-T*.33);
+ // Decorative safe-zone pedestal: it does not make a new blocking tile.
+ rect(g,sx-T*.59,sy-T*.06,T*1.18,T*.29,"#534e3b");
+ rect(g,sx-T*.6,sy-T*.15,T*1.2,6,"#b9a17a");
+ rect(g,sx-T*.52,sy-T*.19,T*1.04,4,"#d5c390");
+ rect(g,sx-T*.56,sy+T*.14,T*1.12,3,"#283c33");
+ const pulse=(Math.sin(now*.004)+1)*.5;
+ rect(g,sx-T*.36,sy-T*.43,T*.7,4,pulse>.5?"#ffcd6c":"#c29e45");
+ const flame=(x,y)=>{
+  const n=2+Math.floor(Math.sin(now*.009+x)*1.5);
+  rect(g,x-5,y-7,10,9,"#393027");rect(g,x-4,y-11,8,4,"#e8b555");
+  rect(g,x-3,y-17-n,6,9+n,"#ef7a2e");
+  rect(g,x-1,y-14-n,3,8+n,"#fff7ac");
+ };
+ flame(sx-T*.73,sy-T*.23);flame(sx+T*.73,sy-T*.23);
 }
 export function drawCohesiveWorld(g,session,art,width,height,display,now=0){
  const map=session.map,cameraX=display.x*T-width/2,cameraY=display.y*T-height/2;
@@ -146,10 +217,16 @@ export function drawCohesiveWorld(g,session,art,width,height,display,now=0){
  const heroRow=Math.floor(display.y),chestRow=Math.floor(map.chest.y);
  for(let y=top;y<=bottom;y++){
   // Depth-sort tree canopies with items and hero by their feet/ground Y.
-  for(let x=left;x<=right;x++)obstacle(g,map,art,x,y,x*T-cameraX,y*T-cameraY);
+  for(let x=left;x<=right;x++)obstacle(g,map,art,x,y,x*T-cameraX,y*T-cameraY,now);
   for(const coin of coinsByRow.get(y)||[]){
    const sx=coin.x*T-cameraX,sy=coin.y*T-cameraY;
    const bob=Math.sin(now*.004+coin.x)*2;
+   // One small glint (not an expensive per-coin gradient).
+   if(H(Math.floor(coin.x),Math.floor(coin.y),4)%3===0){
+    const pulse=(Math.sin(now*.005+coin.x*1.7)+1)*.5;
+    rect(g,sx-2,sy-T*.46+bob-3*pulse,4,2,"#fff8cb");
+    rect(g,sx,sy-T*.5+bob-3*pulse,1,7,"#fff4bd");
+   }
    drawImage(g,art.coin,sx-T*.26,sy-T*.44+bob,T*.52,T*.56);
   }
   if(y===chestRow&&!map.chest.claimed){
