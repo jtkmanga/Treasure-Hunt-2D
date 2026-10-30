@@ -49,8 +49,11 @@ export class V16Room {
  }
  join(uid,now,label='Hunter'){validUid(uid);validNow(now);this.rollover(now);
   if(!this.players.has(uid))this.players.set(uid,{...this.map.spawn,lastAt:now});
-  if(!this.scores.has(uid))this.scores.set(uid,0);
-  this.names.set(uid,String(label||'Hunter').trim().slice(0,36)||'Hunter');
+  const firstJoin=!this.scores.has(uid);
+  if(firstJoin)this.scores.set(uid,0);
+  const newName=String(label||'Hunter').trim().slice(0,36)||'Hunter';
+  if(firstJoin||this.names.get(uid)!==newName)this.version++;
+  this.names.set(uid,newName);
   return this.privateView(uid,now);
  }
  requirePlayer(uid){validUid(uid);const p=this.players.get(uid);ensure(p,'Player not joined');return p}
