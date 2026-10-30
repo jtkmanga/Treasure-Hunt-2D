@@ -1,18 +1,20 @@
-// V8 fullscreen forest practice. No persistent leaderboard or checkout here.
-// Real-time shared pickups and payments MUST be implemented server-side.
-import {TICK_MS,FOREST_SEED,createForestSession,advanceForestTick} from "./forest-engine.mjs";
+import {TICK_MS,MAX_TICKS,createRunSessionV6 as createRunSession,advanceRunTick,replayRunV6 as replayRun} from "./run-engine.mjs";
 import {createPixelArt} from "./pixel-art.mjs";
 import {drawCohesiveWorld as drawPixelWorld,drawCohesiveMiniMap as drawMiniMap} from "./cohesive-world.mjs";
 const el=id=>document.getElementById(id);
 const world=el("world"),ctx=world.getContext("2d",{alpha:false}),mini=el("mini").getContext("2d");
 if(!ctx||!mini)throw Error("Canvas 2D unsupported");
-const art=createPixelArt(0),sessions={free:createForestSession(FOREST_SEED),vip:createForestSession(FOREST_SEED)};
-let server="free",session=sessions.free,display={...session.player};
-let running=false,paused=true,started=false,lastPaint=performance.now(),interval=null,collectPending=false;
-let joyPointer=null,joyX=0,joyY=0,downKeys=new Set(),toastTimeout=0,modalResume=false,lastMini=0;
-const stick=el("stick"),joystick=el("joystick"),menu=el("menu"),rotate=el("rotate"),serverSelect=el("serverSelect");
+const LEVELS=["ป่าลึกลับ","ถ้ำทองคำ","วิหารโบราณ"],SEED=123456789;
+let level=0,session=createRunSession(0,SEED),art=createPixelArt(0),display={...session.player};
+let running=false,paused=true,started=false,ended=false,lastPaint=performance.now();
+let frameLog=[],interval=null,remainingMs=MAX_TICKS*TICK_MS,deadline=0,collectPending=false;
+let joyPointer=null,joyX=0,joyY=0,downKeys=new Set(),toastTimeout=0;
+const stick=el("stick"),joystick=el("joystick"),menu=el("menu"),rotate=el("rotate"),levels=el("levelSelect");
 function isPortrait(){return innerHeight>innerWidth;}
-function layout(){rotate.hidden=!isPortrait();if(!isPortrait())resizeCanvas();}
+function layout(){
+ rotate.hidden=!isPortrait();
+ if(!isPortrait())resizeCanvas();
+}
 function resizeCanvas(){
  const w=world.clientWidth,h=world.clientHeight,dpr=Math.min(1.25,devicePixelRatio||1);
  const pw=Math.max(1,Math.floor(w*dpr)),ph=Math.max(1,Math.floor(h*dpr));
@@ -25,6 +27,7 @@ async function requestLandscape(){
  try{if(screen.orientation?.lock)await screen.orientation.lock("landscape");}catch{}
  layout();
 }
+let areaLevel=-1;
 function paintAreaThumbnail(){
  const c=el("area-art");if(!c)return;
  const g=c.getContext("2d");if(!g)return;
@@ -35,23 +38,16 @@ function paintAreaThumbnail(){
  g.drawImage(art.tree[3],25,-3,58,72);
  g.fillStyle="#ffda6b";g.fillRect(28,54,5,7);
 }
-function formatCountdown(ms){
- const t=Math.max(0,Math.ceil(ms/1000));
- const h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=t%60;
- return [h,m,s].map(v=>String(v).padStart(2,"0")).join(":");
-}
 function updateHud(){
- el("score").textContent=session.score.toLocaleString("th-TH");
- el("coins").textContent=session.coinsCollected.toLocaleString("th-TH");
- el("level").textContent="📍 ป่าลึกลับ";
- el("region").textContent=(server==="free"?"Free Server":"VIP Server")+" · ป่า 100×100";
- const chest=session.map.chest,remaining=chest.respawnAt-Date.now();
- el("time").textContent=chest.claimed&&remaining>0?formatCountdown(remaining):"พร้อมเก็บ";
- el("board-server").textContent=server==="free"?"Free Server · อันดับรายสัปดาห์":"VIP Server · อันดับรายวัน";
- el("board-score").textContent=session.score.toLocaleString("th-TH");
+ el("score").textContent=String(session.score);el("coins").textContent=String(session.coinsCollected)+" / "+session.map.coins.length;
+ el("level").textContent="📍 "+LEVELS[level];el("region").textContent="พื้นที่ "+(level+1)+" · ป่าเริ่มต้น";
+ if(areaLevel!==level){areaLevel=level;paintAreaThumbnail();}
+ const ms=running&&!paused?Math.max(0,Math.min(remainingMs,deadline-performance.now())):remainingMs;
+ const s=Math.ceil(Math.max(0,ms)/1000);
+ el("time").textContent=String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");
 }
-function toast(message,seconds=2){
- el("toast").textContent=message;el("toast").classList.add("show");
+function toast(s,seconds=2){
+ el("toast").textContent=s;el("toast").classList.add("show");
  clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>el("toast").classList.remove("show"),seconds*1000);
 }
 function clearControls(){
@@ -59,34 +55,43 @@ function clearControls(){
  stick.style.transform="translate(-50%,-50%)";el("collect").classList.remove("pressed");
 }
 function startRun(){
- if(running)return;
- started=true;running=true;paused=false;menu.hidden=true;
- serverSelect.disabled=true;el("start").textContent="↻ เริ่มใหม่";
- clearControls();clearInterval(interval);interval=setInterval(simulate,TICK_MS);
- toast("กำลังสำรวจป่า 100×100 · ไม่จำกัดเวลา · โหมดฝึก");
- updateHud();
+ clearInterval(interval);level=Number(levels.value);
+ session=createRunSession(level,SEED);art=createPixelArt(level);display={...session.player};
+ frameLog=[];remainingMs=MAX_TICKS*TICK_MS;started=true;ended=false;running=true;paused=false;
+ deadline=performance.now()+remainingMs;levels.disabled=true;menu.hidden=true;
+ el("start").textContent="↻ เริ่มใหม่";el("result").textContent="";
+ clearControls();updateHud();interval=setInterval(simulate,TICK_MS);
+ toast("เริ่มฝึก 3 นาที · ไม่มีคะแนนออนไลน์");
 }
 function pauseRun(){
  if(!running||paused)return;
+ remainingMs=Math.max(0,Math.min(remainingMs,deadline-performance.now()));
  paused=true;clearInterval(interval);interval=null;clearControls();
  menu.hidden=false;el("resume").hidden=false;
- el("result").textContent="พักการสำรวจ · คะแนนนี้ยังอยู่แค่ในเครื่อง";updateHud();
+ el("result").textContent="พักการฝึก · เวลาหยุดขณะพัก";updateHud();
 }
 function resumeRun(){
- if(!running||!paused||isPortrait())return;
- paused=false;menu.hidden=true;
+ if(!running||!paused||ended||isPortrait())return;
+ paused=false;menu.hidden=true;deadline=performance.now()+remainingMs;
  clearInterval(interval);interval=setInterval(simulate,TICK_MS);updateHud();
 }
-function resetRun(){
- clearInterval(interval);interval=null;clearControls();
- sessions[server]=createForestSession(FOREST_SEED);session=sessions[server];
- display={...session.player};running=false;paused=true;started=false;
- el("result").textContent="";startRun();
-}
-function switchServer(next){
- if(next!=="free"&&next!=="vip")return;
- if(running)return;
- server=next;session=sessions[server];display={...session.player};updateHud();
+function endRun(reason){
+ if(ended||!started)return;
+ running=false;paused=true;ended=true;clearInterval(interval);interval=null;
+ remainingMs=0;clearControls();let matched=false;
+ try{
+  const result=replayRun({level,seed:SEED,frames:frameLog});
+  matched=result.score===session.score&&result.coinsCollected===session.coinsCollected
+   &&result.chestCollected===session.chestCollected
+   &&result.finalX===Math.round(session.player.x*1000)/1000
+   &&result.finalY===Math.round(session.player.y*1000)/1000;
+ }catch{}
+ menu.hidden=false;levels.disabled=false;el("resume").hidden=true;
+ el("result").textContent=reason+" · คะแนนฝึก "+session.score+
+  " · ตรวจย้อนหลังในเบราว์เซอร์ "+(matched?"ตรงกัน":"ไม่ตรงกัน")+
+  " · ไม่ส่งคะแนนจริง";
+ el("start").textContent="▶ เล่นอีกรอบ";toast("จบรอบฝึก "+session.score+" คะแนน",3);
+ updateHud();
 }
 function direction(){
  const left=joyX<-.3||downKeys.has("arrowleft")||downKeys.has("a");
@@ -96,38 +101,38 @@ function direction(){
  return [Number(right)-Number(left),Number(down)-Number(up)];
 }
 function simulate(){
- if(!running||paused||!el("shop-panel").hidden||!el("leaderboard-panel").hidden||!el("reward-panel").hidden)return;
+ if(!running||paused)return;
+ if(performance.now()>=deadline){endRun("ครบเวลา 3 นาที");return;}
  const [dx,dy]=direction(),frame=[dx,dy,collectPending?1:0];collectPending=false;
- let event;
- try{event=advanceForestTick(session,frame,Date.now());}
- catch(err){pauseRun();toast("ระบบฝึกหยุด: "+String(err.message||err));return;}
- if(event?.type==="coin")toast("🪙 เก็บเหรียญ +"+event.coins,1);
- if(event?.type==="chest"){
-  el("reward-value").textContent=event.coins.toLocaleString("th-TH");
-  el("reward-panel").hidden=false;clearControls();
- }
- updateHud();
+ const old=session.score;
+ try{advanceRunTick(session,frame);}catch{endRun("รอบฝึกหยุดเพราะข้อมูลเดินผิดปกติ");return;}
+ frameLog.push(frame);
+ if(session.score>old)toast(session.score-old>=100?"🗝️ เปิดหีบ +100":"🪙 เก็บเหรียญ +10",1);
+ updateHud();if(session.tick>=MAX_TICKS)endRun("ครบ 900 จังหวะ");
 }
 function setJoy(x,y){
- const r=joystick.getBoundingClientRect(),max=r.width*.29,dist=Math.hypot(x,y);
- if(dist>max){x=x/dist*max;y=y/dist*max;}
+ const r=joystick.getBoundingClientRect(),max=r.width*.29;
+ const distance=Math.hypot(x,y);
+ if(distance>max){x=x/distance*max;y=y/distance*max;}
  joyX=max?x/max:0;joyY=max?y/max:0;
  stick.style.transform="translate(calc(-50% + "+Math.round(x)+"px),calc(-50% + "+Math.round(y)+"px))";
 }
 function moveJoy(e){
- const r=joystick.getBoundingClientRect();
- setJoy(e.clientX-r.left-r.width/2,e.clientY-r.top-r.height/2);
+ const r=joystick.getBoundingClientRect();setJoy(e.clientX-r.left-r.width/2,e.clientY-r.top-r.height/2);
 }
 joystick.addEventListener("pointerdown",e=>{
- if(!running||paused||!el("shop-panel").hidden||!el("leaderboard-panel").hidden)return;
- e.preventDefault();joyPointer=e.pointerId;joystick.setPointerCapture(e.pointerId);moveJoy(e);
+ if(!running||paused)return;e.preventDefault();
+ joyPointer=e.pointerId;joystick.setPointerCapture(e.pointerId);moveJoy(e);
 });
 joystick.addEventListener("pointermove",e=>{if(joyPointer===e.pointerId)moveJoy(e);});
 for(const type of ["pointerup","pointercancel","lostpointercapture"])
  joystick.addEventListener(type,e=>{if(joyPointer===e.pointerId){joyPointer=null;setJoy(0,0);}});
+// UI-only preview: do not activate paid perks or claim payment success.
+el("shop-open").addEventListener("click",()=>{el("shop-panel").hidden=false;clearControls();});
+el("shop-close").addEventListener("click",()=>{el("shop-panel").hidden=true;});
 el("collect").addEventListener("pointerdown",e=>{
- if(!running||paused||!el("shop-panel").hidden||!el("reward-panel").hidden)return;
- e.preventDefault();collectPending=true;el("collect").classList.add("pressed");
+ if(!running||paused)return;e.preventDefault();
+ collectPending=true;el("collect").classList.add("pressed");
 });
 for(const type of ["pointerup","pointercancel","pointerleave"])
  el("collect").addEventListener(type,()=>el("collect").classList.remove("pressed"));
@@ -144,36 +149,31 @@ window.addEventListener("blur",()=>{if(running&&!paused)pauseRun();});
 document.addEventListener("visibilitychange",()=>{if(document.hidden&&running&&!paused)pauseRun();});
 window.addEventListener("pagehide",()=>{if(running&&!paused)pauseRun();});
 el("pause").addEventListener("click",()=>{
- if(running&&!paused)pauseRun();
- else{menu.hidden=false;el("resume").hidden=!running||!paused;}
+ if(running&&!paused)pauseRun();else{menu.hidden=false;el("resume").hidden=!running||ended;}
 });
-el("start").addEventListener("click",async()=>{
- await requestLandscape();if(running)resetRun();else startRun();
- if(isPortrait())pauseRun();
-});
+el("start").addEventListener("click",async()=>{await requestLandscape();startRun();if(isPortrait())pauseRun();});
 el("resume").addEventListener("click",()=>{resumeRun();void requestLandscape();});
 el("fullscreen").addEventListener("click",()=>void requestLandscape());
 el("rotate-full").addEventListener("click",()=>void requestLandscape());
-serverSelect.addEventListener("change",()=>switchServer(serverSelect.value));
-function modalShow(id){el(id).hidden=false;clearControls();}
-el("shop-open").addEventListener("click",()=>modalShow("shop-panel"));
-el("shop-close").addEventListener("click",()=>{el("shop-panel").hidden=true;});
-el("leaderboard-open").addEventListener("click",()=>{updateHud();modalShow("leaderboard-panel");});
-el("leaderboard-close").addEventListener("click",()=>{el("leaderboard-panel").hidden=true;});
-el("reward-close").addEventListener("click",()=>{el("reward-panel").hidden=true;});
+levels.addEventListener("change",()=>{
+ if(started&&running)return;level=Number(levels.value);
+ session=createRunSession(level,SEED);art=createPixelArt(level);
+ display={...session.player};remainingMs=MAX_TICKS*TICK_MS;updateHud();
+});
 let lastMini=0;
 function paint(now){
- // V7 sprite art and smooth camera are preserved; only the physics/map changed.
+ // Preserve phone battery: at most ~30 visual frames/sec; the official 200ms
+ // movement and scoring simulation continues unchanged on its own timer.
  if(now-lastPaint<30){requestAnimationFrame(paint);return;}
  const dt=Math.max(0,Math.min(.08,(now-lastPaint)/1000));lastPaint=now;
  const lerp=Math.min(1,dt*15);
  display.x+=(session.player.x-display.x)*lerp;
  display.y+=(session.player.y-display.y)*lerp;
  if(!isPortrait()){
-  const {w,h}=resizeCanvas(),dpr=Math.min(1.25,devicePixelRatio||1);
+  const {w,h}=resizeCanvas();const dpr=Math.min(1.25,devicePixelRatio||1);
   ctx.setTransform(dpr,0,0,dpr,0,0);
   drawPixelWorld(ctx,session,art,w,h,display,now);
-  if(now-lastMini>250){drawMiniMap(mini,session.map,display);lastMini=now;}
+  if(now-lastMini>100){drawMiniMap(mini,session.map,display);lastMini=now;}
  }
  if(running&&!paused)updateHud();
  requestAnimationFrame(paint);
@@ -181,4 +181,4 @@ function paint(now){
 addEventListener("resize",layout);
 addEventListener("orientationchange",layout);
 document.addEventListener("fullscreenchange",layout);
-paintAreaThumbnail();layout();updateHud();requestAnimationFrame(paint);
+layout();updateHud();requestAnimationFrame(paint);
