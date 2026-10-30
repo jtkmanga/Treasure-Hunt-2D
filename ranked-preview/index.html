@@ -106,6 +106,12 @@ select,.action{border:1px solid #9ecab8;background:#0c3c42;color:white;border-ra
 #mini{border:1px solid #759886}
 .collect{background:linear-gradient(150deg,#fff8bf 1%,#fbe18d 28%,#ecc157 65%,#b97829);text-shadow:0 1px #fff3bc}
 .joy{box-shadow:0 0 0 4px #715e2a70,inset 0 0 0 5px #8fbeaa49,0 8px 22px #001c1b9e}
+#shop-open{position:absolute;z-index:5;right:max(12px,env(safe-area-inset-right));top:clamp(95px,25vh,185px);border:2px solid #e3ce83;background:#0a3037ef;color:#ffe9ac;border-radius:16px;padding:10px 14px;font-weight:800;box-shadow:0 4px 14px #001c21a0}
+#shop-panel{z-index:11}
+#shop-panel .shop-item{display:flex;gap:10px;text-align:left;align-items:center;justify-content:space-between;padding:12px;margin:9px 0;border:1px solid #86bcaa;border-radius:12px;background:#0c3036}
+#shop-panel .shop-item strong{color:#ffe7a0}
+#shop-panel .shop-item small{display:block;color:#c7e6d9}
+#shop-panel .shop-item button{background:#24484b;color:#d7e0d9;border:1px solid #63887b;border-radius:9px;padding:8px;font-weight:750}
 </style>
 </head>
 <body>
@@ -123,6 +129,17 @@ select,.action{border:1px solid #9ecab8;background:#0c3c42;color:white;border-ra
 <div class="joy" id="joystick" role="group" aria-label="จอยสติ๊กเดิน 8 ทิศทาง"><span class="direction up">▲</span><span class="direction down">▼</span><span class="direction left">◀</span><span class="direction right">▶</span><div id="stick"></div></div>
 <button type="button" id="collect" class="collect" aria-label="เก็บเหรียญหรือเปิดหีบ">เก็บ ✦</button>
 <div id="toast" role="status" aria-live="polite"></div>
+<button id="shop-open" type="button" aria-label="เปิดร้านค้า">🛍 ร้านค้า</button>
+<section class="scrim" id="shop-panel" hidden aria-label="ร้านค้าไอเทม">
+ <div class="menu" role="dialog" aria-modal="true" aria-labelledby="shop-title">
+ <h1 id="shop-title">🛍 ร้านค้า</h1>
+ <p class="small-note">แสดงตัวอย่างราคาเท่านั้น · ยังไม่รับชำระเงินและไม่เปิดใช้บูสต์</p>
+ <div class="shop-item"><div><strong>🪙 เก็บเหรียญ ×2</strong><small>20 บาท · ใช้งาน 24 ชั่วโมง · คูณเฉพาะเหรียญบนแผนที่</small></div><button disabled>ยังไม่เปิดขาย</button></div>
+ <div class="shop-item"><div><strong>👟 วิ่งเร็ว ×2</strong><small>10 บาท · ใช้งาน 24 ชั่วโมง</small></div><button disabled>ยังไม่เปิดขาย</button></div>
+ <p class="small-note">เมื่อเชื่อมระบบชำระเงินจริง จะเริ่มนับเวลาหลังยืนยันการจ่ายเงินผ่านเซิร์ฟเวอร์เท่านั้น</p>
+ <button class="action primary" id="shop-close" type="button">ปิดร้านค้า</button>
+ </div>
+</section>
 <section class="scrim" id="menu" aria-label="เมนูเกม">
  <div class="menu">
   <div style="font-size:27px">🌲 🗝️ 🪙</div>
