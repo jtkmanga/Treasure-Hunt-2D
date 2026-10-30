@@ -17,7 +17,7 @@ def transform(source):
         names, filename = match.groups()
         if "/" in filename.replace("./", "") or filename not in ["./"+m for m in modules]:
             raise ValueError("Unexpected source module: " + filename)
-        return "const {" + names + '} = __forestV8Modules["' + filename + '"];'
+        return "const {" + re.sub(r"\\s+as\\s+", ": ", names) + '} = __forestV8Modules["' + filename + '"];'
     source, count = re.subn(r'^\s*import\s*\{([^}]+)\}\s*from\s*["\']([^"\']+)["\'];\s*$',
                             imports, source, flags=re.M)
     if re.search(r"(?m)^\s*import\b", source):
