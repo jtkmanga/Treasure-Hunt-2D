@@ -61,21 +61,23 @@ export class ForestContestCore {
   if(this.scope==="vip1"&&(!Number.isSafeInteger(vipExpiresAt)||vipExpiresAt<=now))
    throw Error("Verified VIP membership required");
   if(!this.players.has(uid))
-   this.players.set(uid,{...this.map.spawn,lastMovedAt:now});
+   this.players.set(uid,{...this.map.spawn,lastMovedAt:now,vipExpiresAt:0});
+  if(this.scope==="vip1")this.players.get(uid).vipExpiresAt=Math.max(this.players.get(uid).vipExpiresAt,vipExpiresAt);
   if(!this.scores.has(uid))this.scores.set(uid,0);
   this.labels.set(uid,safeName(displayName));
   return this.personalSnapshot(uid,now);
  }
- ensurePlayer(uid){
+ ensurePlayer(uid,now=null){
   validateUid(uid);
   const player=this.players.get(uid);
   if(!player)throw Error("Must join via verified identity first");
+  if(this.scope==="vip1"&&now!==null&&player.vipExpiresAt<=now)throw Error("VIP membership expired");
   return player;
  }
  boosterExpiry(uid,key){return this.entitlements.get(uid)?.[key]||0;}
  move(uid,dx,dy,now){
   validateNow(now);this.rotatePeriod(now);
-  const player=this.ensurePlayer(uid);
+  const player=this.ensurePlayer(uid,now);
   if(!validFrame(dx,dy))throw Error("Invalid movement");
   if(now<player.lastMovedAt)throw Error("Nonmonotonic clock");
   // Rate-limit simulation steps: no client-side teleport or arbitrary position.
@@ -91,18 +93,25 @@ export class ForestContestCore {
   player.lastMovedAt=now;
   return {x:player.x,y:player.y};
  }
- maybeRespawnChest(now,uid){
+ maybeRespawnChest(now){
   const chest=this.map.chest;
   if(!chest.claimed||now<chest.respawnAt)return;
-  const p=this.ensurePlayer(uid),sites=this.map.chestSites;
-  const candidate=sites.find(s=>Math.hypot(s.x-p.x,s.y-p.y)>6)
-    ??sites[0];
+  const sites=this.map.chestSites;
+  const offset=this.secureDraw()%sites.length;
+  let candidate=null;
+  for(let i=0;i<sites.length;i++){
+   const c=sites[(offset+i)%sites.length];
+   if([...this.players.values()].every(p=>Math.hypot(c.x-p.x,c.y-p.y)>6)){
+    candidate=c;break;
+   }
+  }
+  if(!candidate)return; // no safe location; retry next request
   chest.x=candidate.x;chest.y=candidate.y;chest.claimed=false;chest.respawnAt=0;
  }
  // Must execute under one authoritative atomic per-server serialization lock.
  collect(uid,now){
   validateNow(now);this.rotatePeriod(now);
-  const p=this.ensurePlayer(uid);this.maybeRespawnChest(now,uid);
+  const p=this.ensurePlayer(uid,now);this.maybeRespawnChest(now);
   let nearest=null,dist=Infinity;
   for(const c of this.map.coins){
    if(c.respawnAt>now)continue;
@@ -147,15 +156,15 @@ export class ForestContestCore {
    .slice(0,limit).map(([uid,score],i)=>({rank:i+1,name:this.labels.get(uid)||"Hunter",score}));
  }
  personalSnapshot(uid,now){
-  const p=this.ensurePlayer(uid);
+  const p=this.ensurePlayer(uid,now);
   return {scope:this.scope,periodId:this.periodId,player:{x:p.x,y:p.y},
    score:this.scores.get(uid)||0,
    boosters:Object.fromEntries(Object.keys(BOOSTERS).map(k=>[k,Math.max(0,this.boosterExpiry(uid,k)-now)]))};
  }
  publicSnapshot(now,uid){
   validateNow(now);this.rotatePeriod(now);
-  if(uid)this.ensurePlayer(uid);
-  this.maybeRespawnChest(now,uid||this.players.keys().next().value||"");
+  if(uid)this.ensurePlayer(uid,now);
+  this.maybeRespawnChest(now);
   return {scope:this.scope,periodId:this.periodId,
    coins:this.map.coins.filter(c=>c.respawnAt<=now).map(c=>({id:c.id,x:c.x,y:c.y})),
    chest:{x:this.map.chest.x,y:this.map.chest.y,
