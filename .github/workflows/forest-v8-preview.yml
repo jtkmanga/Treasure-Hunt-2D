@@ -1,0 +1,41 @@
+name: Forest V8 mobile preview - safe ZIP
+on:
+  pull_request:
+    paths:
+      - 'forest-v8/**'
+      - 'src/online/forest-contest-core.mjs'
+      - 'tests/forest-v8.test.mjs'
+      - 'tests/forest-contest-core.test.mjs'
+      - '.github/workflows/forest-v8-preview.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run full regression and forest V8 tests
+        run: npm test
+      - name: Verify V8 modules parse without browser
+        run: |
+          for f in forest-v8/*.mjs src/online/forest-contest-core.mjs; do node --check "$f"; done
+      - name: Pack isolated mobile preview without any backend credentials
+        run: |
+          mkdir -p site/forest-v8
+          cp forest-v8/index.html forest-v8/*.mjs site/forest-v8/
+          cp index.html site/index.html
+          test -f site/forest-v8/forest-engine.mjs
+          test -f site/forest-v8/cohesive-world.mjs
+          ! grep -rE '(sk_live_|SLIP2GO_SECRET|private_key)' site/
+          cd site
+          zip -qr ../Treasure-Hunt-2D-Forest-V8-Mobile.zip .
+      - name: Upload manual-test ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Treasure-Hunt-2D-Forest-V8-Mobile
+          path: Treasure-Hunt-2D-Forest-V8-Mobile.zip
+          if-no-files-found: error
