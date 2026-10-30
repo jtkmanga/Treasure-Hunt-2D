@@ -6,6 +6,7 @@
   "workers_dev": true,
   "vars": {
     "ENABLE_V16_WRITES": "false",
+    "ENABLE_V16_READS": "false",
     "ALLOWED_ORIGIN": "https://treasure-hunt-2d-jtk.pages.dev"
   },
   "durable_objects": {"bindings": [{"name": "ROOMS", "class_name": "V16WorldRoom"}]},
