@@ -21,7 +21,7 @@ export class V16Room {
   this.coinReadyAt=Array(200).fill(0);
   this.chest={x:this.map.chest.x,y:this.map.chest.y,readyAt:0};
   this.scores=new Map();this.names=new Map();this.players=new Map();this.winners=[];
-  this.claimIds=new Map();this.version=0;
+  this.claimIds=new Map();this.claimSequences=new Map();this.version=0;
  }
  static restore(data,now=Date.now(),draw=secureSlot){
   ensure(data&&data.schema===1,'Unknown saved room format');
@@ -33,11 +33,14 @@ export class V16Room {
   room.period=data.period;room.scores=new Map(data.scores);room.names=new Map(data.names);
   room.winners=data.winners||[];room.version=data.version||0;
   room.claimIds=new Map((data.claimIds||[]).map(([uid,ids])=>[uid,new Map(ids)]));
+  room.claimSequences=new Map(data.claimSequences||[]);
+  ensure([...room.claimSequences.values()].every(n=>Number.isSafeInteger(n)&&n>=0),'Corrupt claim sequence');
   return room;
  }
  save(){return {schema:1,scope:this.scope,seed:this.seed,period:this.period,
   coinReadyAt:this.coinReadyAt.slice(),chest:{...this.chest},scores:[...this.scores],names:[...this.names],
-  winners:this.winners.slice(-100),claimIds:[...this.claimIds].map(([uid,v])=>[uid,[...v].slice(-32)]),version:this.version};}
+  winners:this.winners.slice(-100),claimIds:[...this.claimIds].map(([uid,v])=>[uid,[...v].slice(-32)]),
+  claimSequences:[...this.claimSequences],version:this.version};}
  rollover(now){validNow(now);const period=periodFor(this.scope,now).periodId;
   if(period===this.period)return false;
   const top=this.leaders(1)[0]||null;
@@ -75,7 +78,16 @@ export class V16Room {
   }
   return false;
  }
- collect(uid,requestId,now){validNow(now);this.requirePlayer(uid);
+ collect(uid,requestId,now,claimSeq=null){validNow(now);this.requirePlayer(uid);
+  // Monotonic server-persisted client sequence prevents old claim retries
+  // from granting coins after the 60-second respawn, even after DO restart.
+  if(claimSeq!==null){
+   ensure(Number.isSafeInteger(claimSeq)&&claimSeq>0,'Invalid claim sequence');
+   const last=this.claimSequences.get(uid)||0;
+   if(claimSeq<last)throw Error('Stale claim sequence');
+   if(claimSeq===last){const prior=this.claimIds.get(uid)?.get(requestId);return prior??null;}
+   ensure(claimSeq===last+1,'Out-of-order claim sequence');
+  }
   ensure(typeof requestId==='string'&&/^[A-Za-z0-9_-]{12,80}$/.test(requestId),'Invalid claim request ID');
   this.rollover(now);this.chestRespawn(now);
   const memory=this.claimIds.get(uid)||new Map();
@@ -104,6 +116,7 @@ export class V16Room {
   }
   // Remember misses to stop request replay from becoming a future free claim.
   memory.set(requestId,result);if(memory.size>32)memory.delete(memory.keys().next().value);
+  if(claimSeq!==null)this.claimSequences.set(uid,claimSeq);
   this.claimIds.set(uid,memory);
   return result;
  }
@@ -115,5 +128,6 @@ export class V16Room {
    coins:this.map.coins.map((c,i)=>({id:i,x:c.x,y:c.y,readyAt:this.coinReadyAt[i]})),
    chest:{...this.chest},leaders:this.leaders()};
  }
- privateView(uid,now){const p=this.requirePlayer(uid);return {uid,position:{x:p.x,y:p.y},score:this.scores.get(uid)||0,world:this.publicView(now)};}
+ privateView(uid,now){const p=this.requirePlayer(uid);return {uid,position:{x:p.x,y:p.y},score:this.scores.get(uid)||0,
+  nextClaimSeq:(this.claimSequences.get(uid)||0)+1,world:this.publicView(now)};}
 }
