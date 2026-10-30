@@ -5,7 +5,7 @@
 <meta name="theme-color" content="#071c20">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Treasure Hunt 2D — Forest 100×100 Practice</title>
+<title>Treasure Hunt 2D — Forest Art Pass V7</title>
 <style>
 :root{color-scheme:dark;--gold:#ffe18c;--outline:#85e6cd;--ink:#061a1e}
 *{box-sizing:border-box}
@@ -106,9 +106,7 @@ select,.action{border:1px solid #9ecab8;background:#0c3c42;color:white;border-ra
 #mini{border:1px solid #759886}
 .collect{background:linear-gradient(150deg,#fff8bf 1%,#fbe18d 28%,#ecc157 65%,#b97829);text-shadow:0 1px #fff3bc}
 .joy{box-shadow:0 0 0 4px #715e2a70,inset 0 0 0 5px #8fbeaa49,0 8px 22px #001c1b9e}
-#shop-open{position:absolute;z-index:5;right:max(12px,env(safe-area-inset-right));top:clamp(76px,19vh,115px);border:2px solid #e3ce83;background:#0a3037ef;color:#ffe9ac;border-radius:16px;padding:10px 14px;font-weight:800;box-shadow:0 4px 14px #001c21a0}
-#leaderboard-open{position:absolute;z-index:5;right:max(12px,env(safe-area-inset-right));top:clamp(119px,33vh,172px);border:2px solid #a6cfc2;background:#0a3037ef;color:#f7e6aa;border-radius:16px;padding:8px 12px;font-weight:800;box-shadow:0 4px 14px #001c21a0}
-#leaderboard-panel,#reward-panel{z-index:11}
+#shop-open{position:absolute;z-index:5;right:max(12px,env(safe-area-inset-right));top:clamp(95px,25vh,185px);border:2px solid #e3ce83;background:#0a3037ef;color:#ffe9ac;border-radius:16px;padding:10px 14px;font-weight:800;box-shadow:0 4px 14px #001c21a0}
 #shop-panel{z-index:11}
 #shop-panel .shop-item{display:flex;gap:10px;text-align:left;align-items:center;justify-content:space-between;padding:12px;margin:9px 0;border:1px solid #86bcaa;border-radius:12px;background:#0c3036}
 #shop-panel .shop-item strong{color:#ffe7a0}
@@ -121,17 +119,17 @@ select,.action{border:1px solid #9ecab8;background:#0c3c42;color:white;border-ra
 <canvas id="world" aria-label="ฉากเกม Pixel Forest เต็มหน้าจอ"></canvas><div class="vignette"></div>
 <div class="hud" aria-label="สถานะการแข่งขันโหมดฝึก">
  <div class="panel area"><div class="area-icon" aria-hidden="true"><canvas id="area-art" width="70" height="70"></canvas></div><div><strong id="level">📍 ป่าลึกลับ</strong><small id="region">พื้นที่ 1 · ป่าเริ่มต้น</small></div></div>
- <div class="panel stat"><span class="symbol" aria-hidden="true">🪙</span><div><small>คะแนนเหรียญ</small><strong id="score">0</strong></div></div>
- <div class="panel stat"><span class="symbol" aria-hidden="true">🌿</span><div><small>เก็บจากแผนที่</small><strong id="coins">0</strong></div></div>
- <div class="panel time-pill"><span class="timer-symbol" aria-hidden="true">🎁</span><div><small>Lucky Box เกิดใหม่ใน</small><strong id="time">พร้อมเก็บ</strong></div></div>
+ <div class="panel stat"><span class="symbol" aria-hidden="true">⭐</span><div><small>คะแนน</small><strong id="score">0</strong></div></div>
+ <div class="panel stat"><span class="symbol" aria-hidden="true">🪙</span><div><small>เหรียญ</small><strong id="coins">0</strong></div></div>
+ <div class="panel time-pill"><span class="timer-symbol" aria-hidden="true">⏱</span><div><small>เวลา</small><strong id="time">03:00</strong></div></div>
  <div class="panel minimap"><canvas id="mini" width="160" height="140" aria-label="แผนที่ย่อ"></canvas></div>
  <button class="icon-button" id="pause" type="button" aria-label="เปิดเมนูและหยุดเกม">Ⅱ</button>
 </div>
-<div class="practice-tag" id="practice-tag">PRACTICE · คะแนนยังไม่ออนไลน์</div>
+<div class="practice-tag" id="practice-tag">PRACTICE · ไม่มีคะแนนออนไลน์</div>
 <div class="joy" id="joystick" role="group" aria-label="จอยสติ๊กเดิน 8 ทิศทาง"><span class="direction up">▲</span><span class="direction down">▼</span><span class="direction left">◀</span><span class="direction right">▶</span><div id="stick"></div></div>
 <button type="button" id="collect" class="collect" aria-label="เก็บเหรียญหรือเปิดหีบ">เก็บ ✦</button>
 <div id="toast" role="status" aria-live="polite"></div>
-<button id="shop-open" type="button" aria-label="เปิดร้านค้า">🛍 ร้านค้า</button><button id="leaderboard-open" type="button" aria-label="ดูอันดับ">🏆 อันดับ</button>
+<button id="shop-open" type="button" aria-label="เปิดร้านค้า">🛍 ร้านค้า</button>
 <section class="scrim" id="shop-panel" hidden aria-label="ร้านค้าไอเทม">
  <div class="menu" role="dialog" aria-modal="true" aria-labelledby="shop-title">
  <h1 id="shop-title">🛍 ร้านค้า</h1>
@@ -142,35 +140,18 @@ select,.action{border:1px solid #9ecab8;background:#0c3c42;color:white;border-ra
  <button class="action primary" id="shop-close" type="button">ปิดร้านค้า</button>
  </div>
 </section>
-<section class="scrim" id="leaderboard-panel" hidden aria-label="ตารางอันดับ">
- <div class="menu" role="dialog" aria-modal="true" aria-labelledby="board-title">
- <h1 id="board-title">🏆 ตารางคะแนน</h1>
- <p id="board-server">Free Server</p>
- <p class="small-note">ยังไม่ได้เชื่อมฐานข้อมูลออนไลน์ • ไม่มีอันดับผู้เล่นอื่นหรือคะแนนจริง</p>
- <p>เหรียญในรอบฝึกนี้: <strong id="board-score">0</strong></p>
- <button class="action primary" type="button" id="leaderboard-close">ปิด</button>
- </div>
-</section>
-<section class="scrim" id="reward-panel" hidden aria-label="ผลการสุ่มกล่องสมบัติ">
- <div class="menu" role="dialog" aria-modal="true" aria-labelledby="reward-title">
- <div style="font-size:42px">🎁</div><h1 id="reward-title">Lucky Box!</h1>
- <p>คุณได้รับ <strong id="reward-value">0</strong> เหรียญ</p>
- <p class="small-note">โหมดฝึก: การสุ่มนี้ไม่เพิ่มคะแนนออนไลน์และไม่ใช้เงินจริง</p>
- <button class="action primary" type="button" id="reward-close">เล่นต่อ</button>
- </div>
-</section>
 <section class="scrim" id="menu" aria-label="เมนูเกม">
  <div class="menu">
   <div style="font-size:27px">🌲 🗝️ 🪙</div>
   <h1>TREASURE HUNT 2D</h1>
-  <p>ป่าลึกลับ 100×100 · สำรวจได้ไม่จำกัดเวลา</p>
-  <p class="small-note">ใช้จอยซ้ายเดิน / ปุ่มทองเก็บเหรียญ · เก็บเหรียญและเปิด Lucky Box ได้ตลอดเวลา · โหมดฝึกยังไม่ส่งคะแนนขึ้นเซิร์ฟเวอร์</p>
-  <div class="choices"><label for="serverSelect">เซิร์ฟเวอร์จำลอง:</label>
-   <select id="serverSelect"><option value="free">🌿 Free Server</option><option value="vip">👑 VIP Server</option></select>
+  <p>Forest V7 · ป่าผจญภัยแบบกราฟิกชุดเดียวทั้งฉาก</p>
+  <p class="small-note">ใช้จอยซ้ายเดิน / ปุ่มทองเก็บเหรียญ · คะแนนฝึกเท่านั้น ยังไม่มีการส่งข้อมูลจริง</p>
+  <div class="choices"><label for="levelSelect">ด่าน:</label>
+   <select id="levelSelect"><option value="0">🌲 ป่าลึกลับ</option><option value="1">🪨 ถ้ำทองคำ</option><option value="2">🏛️ วิหารโบราณ</option></select>
   </div>
   <div id="result" role="status"></div>
   <div class="choices">
-   <button class="action primary" id="start" type="button">▶ เริ่มสำรวจป่า</button>
+   <button class="action primary" id="start" type="button">▶ เริ่มฝึก 3 นาที</button>
    <button class="action secondary" id="resume" type="button" hidden>เล่นต่อ</button>
    <button class="action secondary" id="fullscreen" type="button">⛶ เต็มจอ</button>
   </div>
@@ -179,7 +160,7 @@ select,.action{border:1px solid #9ecab8;background:#0c3c42;color:white;border-ra
 </section>
 <section id="rotate" class="scrim" hidden aria-label="คำแนะนำหมุนหน้าจอ">
  <div class="menu"><div class="symbol">↻ 📱</div><h1>กรุณาหมุนมือถือเป็นแนวนอน</h1>
- <p>เกมออกแบบให้แสดงเต็มจอแนวนอน โดยคะแนนและสถานะ Lucky Box อยู่ด้านบนของแผนที่</p>
+ <p>เกมออกแบบให้แสดงเต็มจอแนวนอน โดยเวลาและคะแนนอยู่ด้านบนของแผนที่</p>
  <button class="action primary" id="rotate-full" type="button">⛶ ลองเปิดเต็มจอ</button>
  <p class="small-note">ถ้าไม่หมุน ให้ปิดล็อกแนวตั้งในแผงควบคุมของโทรศัพท์</p></div>
 </section>
