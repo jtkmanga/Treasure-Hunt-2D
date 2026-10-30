@@ -59,7 +59,7 @@ function terrainTile(g,map,art,x,y,sx,sy,now){
     |(cell(map.path,x-1,y)?8:0);
   // Organic path has rounded, grainy edges and is cached as a sprite.
   if(art.trail)drawImage(g,art.trail[mask*4+(seed%4)],sx,sy,T,T);
-  else drawImage(g,art.path[seed%art.path.length],sx,sy,T,T);
+  else if(art.path)drawImage(g,art.path[seed%art.path.length],sx,sy,T,T);
  }
  if(!wet&&!road&&seed%6===0){
   // Sparse moss / wild ground patches, not giant repeating square fills.
