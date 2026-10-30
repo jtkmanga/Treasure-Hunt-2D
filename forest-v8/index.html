@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="th"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#071c20">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Treasure Hunt 2D — Forest 100×100 Practice</title>
+<style>
+:root{color-scheme:dark;--gold:#ffe18c;--outline:#85e6cd;--ink:#061a1e}
+*{box-sizing:border-box}
+html,body{width:100%;height:100%;margin:0;overflow:hidden;overscroll-behavior:none;background:#061b21;font-family:system-ui,-apple-system,"Noto Sans Thai",sans-serif;color:white}
+button,select{font:inherit;-webkit-tap-highlight-color:transparent}
+button{touch-action:manipulation;cursor:pointer;color:inherit}
+button:focus-visible,select:focus-visible{outline:3px solid #fff19b;outline-offset:2px}
+#game{position:fixed;inset:0;width:100vw;height:100dvh;overflow:hidden;background:#13382b;touch-action:none}
+#world{width:100%;height:100%;display:block;image-rendering:pixelated;touch-action:none}
+.vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 43%,#04111276 100%)}
+.hud{position:absolute;top:max(9px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));right:max(10px,env(safe-area-inset-right));display:flex;gap:clamp(5px,1vw,13px);align-items:flex-start;z-index:3;pointer-events:none}
+.panel,.icon-button{background:linear-gradient(145deg,#092631f3,#082129e8);border:2px solid #76ccbd;box-shadow:0 4px 0 #0920248f,0 4px 25px #02191c7c,inset 0 1px 0 #fffff33b;border-radius:18px;pointer-events:auto}
+.area{height:clamp(50px,12vh,80px);min-width:0;flex:1.5;display:flex;align-items:center;gap:8px;padding:5px 11px}
+.area-icon{font-size:24px;line-height:1;background:#225b4b;border-radius:10px;padding:8px;border:1px solid #8ec6a2}
+.area strong{font-size:clamp(13px,2.7vh,20px);color:#ffe29d;white-space:nowrap;display:block}
+.area small{font-size:clamp(10px,1.8vh,13px);color:#c4e7df;white-space:nowrap;display:block}
+.stat{height:clamp(50px,12vh,80px);flex:0.85;min-width:82px;display:flex;align-items:center;justify-content:center;gap:8px;padding:5px 7px}
+.stat .symbol{font-size:clamp(21px,4vh,36px);flex:0 0 auto;text-shadow:0 2px 2px #1d120c}
+.stat small,.time-pill small{display:block;font-size:clamp(10px,1.75vh,13px);color:#c1e5da}
+.stat strong,.time-pill strong{font-size:clamp(18px,4vh,30px);font-variant-numeric:tabular-nums;letter-spacing:.4px;white-space:nowrap}
+.time-pill{min-width:110px;flex:1.12;height:clamp(50px,12vh,80px);display:flex;align-items:center;justify-content:center;gap:8px;padding:5px 7px;border-color:#75d9af;border-radius:45px}
+.timer-symbol{font-size:clamp(19px,4vh,30px)}
+.minimap{width:clamp(70px,13vh,106px);height:clamp(50px,12vh,80px);padding:3px;flex:none}
+#mini{display:block;width:100%;height:100%;image-rendering:pixelated;border-radius:11px}
+.icon-button{height:clamp(50px,12vh,80px);width:clamp(42px,9vh,70px);font-weight:900;font-size:clamp(22px,4vh,32px);flex:none}
+.practice-tag{position:absolute;top:calc(max(9px,env(safe-area-inset-top)) + clamp(50px,12vh,80px) + 7px);left:max(12px,env(safe-area-inset-left));font-size:clamp(10px,1.8vh,13px);background:#0b292acb;padding:5px 10px;border:1px solid #69ac91;border-radius:20px;z-index:2;pointer-events:none}
+.joy{position:absolute;bottom:max(14px,env(safe-area-inset-bottom));left:max(20px,env(safe-area-inset-left));width:clamp(105px,29vh,190px);height:clamp(105px,29vh,190px);border:3px solid #e8be62;border-radius:50%;background:#062b34a9;box-shadow:0 0 0 5px #0a293876,inset 0 0 0 6px #30645678,0 7px 22px #0006;z-index:3;touch-action:none;user-select:none}
+.joy:after{content:"";position:absolute;inset:9%;border:1px solid #9bcdb26b;border-radius:50%;pointer-events:none}
+.direction{position:absolute;color:#b9d9d2b2;font-size:clamp(12px,3vh,19px);line-height:1}
+.direction.up{top:7%;left:50%;transform:translateX(-50%)}.direction.down{bottom:7%;left:50%;transform:translateX(-50%)}.direction.left{left:8%;top:50%;transform:translateY(-50%)}.direction.right{right:8%;top:50%;transform:translateY(-50%)}
+#stick{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:43%;height:43%;border-radius:50%;border:2px solid #fff;background:linear-gradient(#e2e4e3,#91adb0);box-shadow:inset 0 2px 3px #fff8,0 5px 7px #00191fb5;pointer-events:none}
+.collect{position:absolute;right:max(22px,env(safe-area-inset-right));bottom:max(17px,env(safe-area-inset-bottom));width:clamp(106px,31vh,194px);height:clamp(106px,31vh,194px);border-radius:50%;border:4px solid #fff4b6;background:linear-gradient(155deg,#ffe69a,#f4c75b 59%,#c98c31);color:#51340f;box-shadow:0 0 0 6px #9472308f,0 10px 0 #60401cc9,0 18px 25px #04151996,inset 0 4px 4px #fff9;font-weight:950;font-size:clamp(21px,5vh,36px);z-index:3;touch-action:none;text-shadow:0 1px #ffebac}
+.collect:active,.collect.pressed{transform:translateY(4px);box-shadow:0 0 0 6px #9472308f,0 5px 0 #60401c,inset 0 3px 8px #7c541d50}
+#toast{position:absolute;bottom:15px;left:50%;transform:translateX(-50%);max-width:42vw;padding:5px 14px;background:#041d27d9;color:#ffe8aa;border:1px solid #a2bf9c;border-radius:30px;font-size:clamp(10px,2.2vh,15px);text-align:center;pointer-events:none;opacity:0;transition:opacity .22s;z-index:4}
+#toast.show{opacity:1}
+.scrim{position:absolute;inset:0;background:#03161cbd;display:grid;place-items:center;z-index:9;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));overflow:auto}
+.scrim[hidden]{display:none!important}
+.menu{width:min(525px,96vw);max-height:94dvh;overflow:auto;background:linear-gradient(150deg,#134a47,#0b2631);border:3px solid #91cba9;border-radius:22px;padding:clamp(13px,2.5vh,22px);box-shadow:0 16px 60px #000b;text-align:center}
+.menu h1{font-size:clamp(19px,5vh,30px);color:var(--gold);margin:1px 0 5px}
+.menu p{color:#d1e6d5;line-height:1.4;font-size:clamp(12px,2.7vh,15px);margin:5px 0 10px}
+.small-note{font-size:12px!important;color:#b4d2c9!important}
+.choices{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:7px;margin:8px 0}
+select,.action{border:1px solid #9ecab8;background:#0c3c42;color:white;border-radius:13px;padding:10px 12px;font-weight:800}
+.action.primary{background:linear-gradient(#27a981,#137e70);border-color:#b1ead0;font-size:17px;min-width:155px}
+.action.secondary{background:#183c45}
+#result{margin:5px auto;font-weight:800;color:#ffe9a7;line-height:1.5}
+#rotate{z-index:12;background:#071e24f5}
+#rotate .menu{max-width:390px}
+#rotate .symbol{font-size:48px}
+@media(max-width:690px){.area-icon{display:none}.hud{gap:4px}.area{padding:4px 6px;flex:1.1}.stat{min-width:62px;gap:3px}.stat .symbol{font-size:18px}.stat strong{font-size:17px}.time-pill{min-width:88px;gap:3px;flex:1}.minimap{width:65px}.icon-button{width:42px}}
+@media(max-height:330px){.hud{top:3px}.practice-tag{top:55px}.joy,.collect{bottom:8px}.menu{padding:10px}.menu h1{font-size:18px}.menu p{font-size:12px}}
+
+/* Pixel Forest art-pass 2: warm fantasy-gold framing without blocking play. */
+.panel,.icon-button{
+ border-color:#e7c877;
+ background:linear-gradient(160deg,#092c31ef,#05232de9 78%);
+ box-shadow:0 0 0 2px #08271d95,0 6px 20px #001318aa,inset 0 2px 0 #fff6d245;
+}
+.area{border-color:#f3d984;box-shadow:0 0 0 2px #163f249c,0 5px 17px #032018ad,inset 0 2px 0 #fff8c95c}
+.stat .symbol{filter:drop-shadow(0 2px 3px #4b2c11)}
+.area-icon{background:linear-gradient(160deg,#236b4b,#0d4b40);border-color:#e7d58c}
+.stat strong,.time-pill strong{text-shadow:0 2px 5px #0008}
+.time-pill{border-color:#9deac4;box-shadow:0 0 0 2px #174c47a4,0 5px 16px #041d1cb0,inset 0 2px 0 #ffeac840}
+.minimap{border-color:#f3d895;overflow:hidden}
+.icon-button{color:#fff4cf;line-height:1}
+.practice-tag{border:1px solid #dcc37b;background:#052529dc;color:#f6f2db;box-shadow:0 2px 12px #001713a8}
+.joy{border-color:#f4d47a;box-shadow:0 0 0 5px #7359247a,inset 0 0 0 6px #96aa7b3e,0 8px 20px #0007;background:radial-gradient(#345c585a,#052c36bc)}
+#stick{background:linear-gradient(160deg,#eff8f9,#aabdc2);box-shadow:inset 0 2px 2px #fff,0 6px 8px #001b23b5}
+.collect{border-color:#fff6cb;background:linear-gradient(145deg,#fff5a7,#fbd468 56%,#bd7923);box-shadow:0 0 0 5px #866021af,0 9px 0 #6e461c,0 15px 27px #001d138c,inset 0 4px 8px #fff7d2}
+#game:after{content:"";position:absolute;inset:0;pointer-events:none;border:2px solid #05191a33;z-index:1}
+@media(max-width:680px){.area-icon{display:none}.area small{font-size:9px}.hud{gap:4px}.stat small,.time-pill small{font-size:9px}.icon-button{border-radius:13px}}
+
+/* Reference-look V4: large preview thumbnail, slimmer teal fantasy HUD, wide world view */
+.hud{gap:clamp(5px,.8vw,12px)}
+.panel,.icon-button{border:2px solid #b4e6dc;box-shadow:0 3px 0 #0b3736ab,0 5px 21px #001f25a6,inset 0 1px 0 #d1fff65f;background:linear-gradient(165deg,#07282ddf,#051f2ce9)}
+.area{border-color:#b7e5d9;max-width:480px;flex:1.55;gap:11px}
+.area-icon{width:clamp(50px,11vh,80px);height:clamp(48px,11vh,75px);padding:3px;border:1px solid #a8e4d7;border-radius:14px;background:#124638;overflow:hidden;flex:none}
+#area-art{width:100%;height:100%;display:block;image-rendering:pixelated}
+.area strong{color:#fff5d6}
+.stat{flex:.9;max-width:270px}
+.time-pill{flex:1.12;max-width:350px}
+.minimap{width:clamp(103px,13vw,207px);height:clamp(58px,20vh,172px);border-color:#b8f2e3;box-shadow:0 4px 16px #001a1caa;flex:none}
+#mini{border-radius:12px;background:#23544b}
+.practice-tag{border:1px solid #72988d;background:#05242ac8;box-shadow:0 2px 9px #001d21bb}
+.icon-button{color:#fff2c9;border-color:#b5e6da}
+.joy{border-color:#f8db8b}
+.collect{border-color:#fff1a6}
+@media(max-width:790px){.area-icon{display:none}.area{min-width:94px}.hud{gap:3px}.stat{min-width:57px}.minimap{width:clamp(68px,11vw,120px);height:clamp(49px,16vh,95px)}}
+@media(max-height:340px){.minimap{height:clamp(49px,20vh,75px)}.stat .symbol{font-size:18px}}
+
+/* V7 fantasy HUD finishing: lightweight highlights, no GPU-heavy blur filters. */
+.panel,.icon-button{box-shadow:0 2px 0 #22413d,0 7px 22px #00191bae,inset 0 1px 0 #f5fce86f;border-color:#c7f1e4}
+.area strong{letter-spacing:.12px;color:#ffedb9;text-shadow:0 2px 3px #0009}
+.area-icon{background:linear-gradient(160deg,#287759,#104039);border-color:#f2db9c}
+.stat .symbol{filter:drop-shadow(0 2px 4px #b77e206a)}
+.time-pill{border-color:#a8eed7}
+.minimap{border-color:#c9ead7;box-shadow:0 5px 19px #001b25a9,inset 0 1px 0 #fff7}
+#mini{border:1px solid #759886}
+.collect{background:linear-gradient(150deg,#fff8bf 1%,#fbe18d 28%,#ecc157 65%,#b97829);text-shadow:0 1px #fff3bc}
+.joy{box-shadow:0 0 0 4px #715e2a70,inset 0 0 0 5px #8fbeaa49,0 8px 22px #001c1b9e}
+#shop-open{position:absolute;z-index:5;right:max(12px,env(safe-area-inset-right));top:clamp(76px,19vh,115px);border:2px solid #e3ce83;background:#0a3037ef;color:#ffe9ac;border-radius:16px;padding:10px 14px;font-weight:800;box-shadow:0 4px 14px #001c21a0}
+#leaderboard-open{position:absolute;z-index:5;right:max(12px,env(safe-area-inset-right));top:clamp(119px,33vh,172px);border:2px solid #a6cfc2;background:#0a3037ef;color:#f7e6aa;border-radius:16px;padding:8px 12px;font-weight:800;box-shadow:0 4px 14px #001c21a0}
+#leaderboard-panel,#reward-panel{z-index:11}
+#shop-panel{z-index:11}
+#shop-panel .shop-item{display:flex;gap:10px;text-align:left;align-items:center;justify-content:space-between;padding:12px;margin:9px 0;border:1px solid #86bcaa;border-radius:12px;background:#0c3036}
+#shop-panel .shop-item strong{color:#ffe7a0}
+#shop-panel .shop-item small{display:block;color:#c7e6d9}
+#shop-panel .shop-item button{background:#24484b;color:#d7e0d9;border:1px solid #63887b;border-radius:9px;padding:8px;font-weight:750}
+</style>
+</head>
+<body>
+<div id="game">
+<canvas id="world" aria-label="ฉากเกม Pixel Forest เต็มหน้าจอ"></canvas><div class="vignette"></div>
+<div class="hud" aria-label="สถานะการแข่งขันโหมดฝึก">
+ <div class="panel area"><div class="area-icon" aria-hidden="true"><canvas id="area-art" width="70" height="70"></canvas></div><div><strong id="level">📍 ป่าลึกลับ</strong><small id="region">พื้นที่ 1 · ป่าเริ่มต้น</small></div></div>
+ <div class="panel stat"><span class="symbol" aria-hidden="true">🪙</span><div><small>คะแนนเหรียญ</small><strong id="score">0</strong></div></div>
+ <div class="panel stat"><span class="symbol" aria-hidden="true">🌿</span><div><small>เก็บจากแผนที่</small><strong id="coins">0</strong></div></div>
+ <div class="panel time-pill"><span class="timer-symbol" aria-hidden="true">🎁</span><div><small>Lucky Box เกิดใหม่ใน</small><strong id="time">พร้อมเก็บ</strong></div></div>
+ <div class="panel minimap"><canvas id="mini" width="160" height="140" aria-label="แผนที่ย่อ"></canvas></div>
+ <button class="icon-button" id="pause" type="button" aria-label="เปิดเมนูและหยุดเกม">Ⅱ</button>
+</div>
+<div class="practice-tag" id="practice-tag">PRACTICE · คะแนนยังไม่ออนไลน์</div>
+<div class="joy" id="joystick" role="group" aria-label="จอยสติ๊กเดิน 8 ทิศทาง"><span class="direction up">▲</span><span class="direction down">▼</span><span class="direction left">◀</span><span class="direction right">▶</span><div id="stick"></div></div>
+<button type="button" id="collect" class="collect" aria-label="เก็บเหรียญหรือเปิดหีบ">เก็บ ✦</button>
+<div id="toast" role="status" aria-live="polite"></div>
+<button id="shop-open" type="button" aria-label="เปิดร้านค้า">🛍 ร้านค้า</button><button id="leaderboard-open" type="button" aria-label="ดูอันดับ">🏆 อันดับ</button>
+<section class="scrim" id="shop-panel" hidden aria-label="ร้านค้าไอเทม">
+ <div class="menu" role="dialog" aria-modal="true" aria-labelledby="shop-title">
+ <h1 id="shop-title">🛍 ร้านค้า</h1>
+ <p class="small-note">แสดงตัวอย่างราคาเท่านั้น · ยังไม่รับชำระเงินและไม่เปิดใช้บูสต์</p>
+ <div class="shop-item"><div><strong>🪙 เก็บเหรียญ ×2</strong><small>20 บาท · ใช้งาน 24 ชั่วโมง · คูณเฉพาะเหรียญบนแผนที่</small></div><button disabled>ยังไม่เปิดขาย</button></div>
+ <div class="shop-item"><div><strong>👟 วิ่งเร็ว ×2</strong><small>10 บาท · ใช้งาน 24 ชั่วโมง</small></div><button disabled>ยังไม่เปิดขาย</button></div>
+ <p class="small-note">เมื่อเชื่อมระบบชำระเงินจริง จะเริ่มนับเวลาหลังยืนยันการจ่ายเงินผ่านเซิร์ฟเวอร์เท่านั้น</p>
+ <button class="action primary" id="shop-close" type="button">ปิดร้านค้า</button>
+ </div>
+</section>
+<section class="scrim" id="leaderboard-panel" hidden aria-label="ตารางอันดับ">
+ <div class="menu" role="dialog" aria-modal="true" aria-labelledby="board-title">
+ <h1 id="board-title">🏆 ตารางคะแนน</h1>
+ <p id="board-server">Free Server</p>
+ <p class="small-note">ยังไม่ได้เชื่อมฐานข้อมูลออนไลน์ • ไม่มีอันดับผู้เล่นอื่นหรือคะแนนจริง</p>
+ <p>เหรียญในรอบฝึกนี้: <strong id="board-score">0</strong></p>
+ <button class="action primary" type="button" id="leaderboard-close">ปิด</button>
+ </div>
+</section>
+<section class="scrim" id="reward-panel" hidden aria-label="ผลการสุ่มกล่องสมบัติ">
+ <div class="menu" role="dialog" aria-modal="true" aria-labelledby="reward-title">
+ <div style="font-size:42px">🎁</div><h1 id="reward-title">Lucky Box!</h1>
+ <p>คุณได้รับ <strong id="reward-value">0</strong> เหรียญ</p>
+ <p class="small-note">โหมดฝึก: การสุ่มนี้ไม่เพิ่มคะแนนออนไลน์และไม่ใช้เงินจริง</p>
+ <button class="action primary" type="button" id="reward-close">เล่นต่อ</button>
+ </div>
+</section>
+<section class="scrim" id="menu" aria-label="เมนูเกม">
+ <div class="menu">
+  <div style="font-size:27px">🌲 🗝️ 🪙</div>
+  <h1>TREASURE HUNT 2D</h1>
+  <p>ป่าลึกลับ 100×100 · สำรวจได้ไม่จำกัดเวลา</p>
+  <p class="small-note">ใช้จอยซ้ายเดิน / ปุ่มทองเก็บเหรียญ · เก็บเหรียญและเปิด Lucky Box ได้ตลอดเวลา · โหมดฝึกยังไม่ส่งคะแนนขึ้นเซิร์ฟเวอร์</p>
+  <div class="choices"><label for="serverSelect">เซิร์ฟเวอร์จำลอง:</label>
+   <select id="serverSelect"><option value="free">🌿 Free Server</option><option value="vip">👑 VIP Server</option></select>
+  </div>
+  <div id="result" role="status"></div>
+  <div class="choices">
+   <button class="action primary" id="start" type="button">▶ เริ่มสำรวจป่า</button>
+   <button class="action secondary" id="resume" type="button" hidden>เล่นต่อ</button>
+   <button class="action secondary" id="fullscreen" type="button">⛶ เต็มจอ</button>
+  </div>
+  <p class="small-note">หากมือถือไม่หมุนอัตโนมัติ ให้ปิดล็อกการหมุนหน้าจอและหมุนเครื่องเป็นแนวนอน</p>
+ </div>
+</section>
+<section id="rotate" class="scrim" hidden aria-label="คำแนะนำหมุนหน้าจอ">
+ <div class="menu"><div class="symbol">↻ 📱</div><h1>กรุณาหมุนมือถือเป็นแนวนอน</h1>
+ <p>เกมออกแบบให้แสดงเต็มจอแนวนอน โดยคะแนนและสถานะ Lucky Box อยู่ด้านบนของแผนที่</p>
+ <button class="action primary" id="rotate-full" type="button">⛶ ลองเปิดเต็มจอ</button>
+ <p class="small-note">ถ้าไม่หมุน ให้ปิดล็อกแนวตั้งในแผงควบคุมของโทรศัพท์</p></div>
+</section>
+</div>
+<script type="module" src="./main.mjs"></script>
+</body></html>
