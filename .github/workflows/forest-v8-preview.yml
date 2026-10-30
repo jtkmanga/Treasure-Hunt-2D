@@ -6,6 +6,8 @@ on:
       - 'src/online/forest-contest-core.mjs'
       - 'tests/forest-v8.test.mjs'
       - 'tests/forest-contest-core.test.mjs'
+      - 'tests/forest-v8-sql.test.mjs'
+      - 'db/forest-v8.sql'
       - '.github/workflows/forest-v8-preview.yml'
   workflow_dispatch:
 permissions:
