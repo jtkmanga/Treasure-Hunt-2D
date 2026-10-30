@@ -23,7 +23,7 @@ function drawRoad(mask,points,width=0){
   }
  }
 }
-export function makeMap(level,seed){
+export function makeMapV6(level,seed){
  if(!Number.isInteger(level)||level<0||level>=LEVEL_SEEDS.length
    ||!Number.isSafeInteger(seed)||seed<0||seed>0xffffffff)throw Error("Invalid map configuration");
  const r=rng((LEVEL_SEEDS[level]^seed)>>>0),path=grid(),water=grid(),bridge=grid(),tiles=grid(0);
@@ -32,7 +32,8 @@ export function makeMap(level,seed){
   [[3,2],[10,2],[12,5],[12,9],[12,13],[10,16],[8,19],[6,23]],
   [[3,10],[6,10],[9,12],[12,13],[15,11],[18,10],[22,9],[22,7]],
   [[12,13],[15,15],[18,18],[22,18],[23,23]],
-  [[3,17],[6,17],[9,17],[12,13]]
+  [[3,17],[6,17],[9,17],[12,13]],
+  [[12,2],[23,2]],[[12,10],[23,10]],[[12,18],[23,18]]
  ])drawRoad(path,points);
  for(let y=1;y<25;y++){
   const center=18+Math.round(Math.sin(y*.51+level*.3)*.9);
@@ -98,6 +99,31 @@ export function makeMap(level,seed){
  for(const [x,y] of sites.slice(0,82))coins.push({x:x+.5,y:y+.5,nextTick:0});
  return {tiles,path,water,bridge,coins,chest:{...SHRINE,claimed:false},spawn:{...SPAWN}};
 }
+export function makeMap(level,seed){
+  if(!Number.isInteger(level)||level<0||level>=LEVEL_SEEDS.length
+    ||!Number.isSafeInteger(seed)||seed<0||seed>0xffffffff)throw Error("Invalid map configuration");
+  const r=rng((LEVEL_SEEDS[level]^seed)>>>0), tiles=[],coins=[];
+  for(let y=0;y<MAP_SIZE;y++){
+    const row=[];
+    for(let x=0;x<MAP_SIZE;x++){
+      const safe=(Math.abs(x-2)<3&&Math.abs(y-2)<3)
+        ||(Math.abs(x-23)<3&&Math.abs(y-23)<3)
+        ||(y===2&&x>=2&&x<=23)||(x===23&&y>=2&&y<=23);
+      const n=r(),edge=x===0||y===0||x===MAP_SIZE-1||y===MAP_SIZE-1;
+      row.push(edge?2:safe?0:n<.105?1:n<.165?2:n<.205?3:0);
+    }
+    tiles.push(row);
+  }
+  let attempts=0;
+  while(coins.length<82&&attempts++<4000){
+    const x=1+Math.floor(r()*(MAP_SIZE-2)),y=1+Math.floor(r()*(MAP_SIZE-2));
+    if(tiles[y][x]||Math.hypot(x-2.5,y-2.5)<2
+      ||Math.hypot(x-23.5,y-23.5)<1.5
+      ||coins.some(c=>c.x===x+.5&&c.y===y+.5))continue;
+    coins.push({x:x+.5,y:y+.5,nextTick:0});
+  }
+  return {tiles,coins,chest:{x:23.5,y:23.5,claimed:false},spawn:{x:2.5,y:2.5}};
+}
 function walkable(tiles,x,y){
   const radius=.26,coords=[[x-radius,y-radius],[x+radius,y-radius],[x-radius,y+radius],[x+radius,y+radius]];
   return coords.every(([a,b])=>{const xx=Math.floor(a),yy=Math.floor(b);
@@ -152,6 +178,23 @@ export function replayRun({level,seed,frames}){
  if(!Array.isArray(frames)||frames.length<1||frames.length>MAX_TICKS)
   throw Error("Invalid frame count");
  const session=createRunSession(level,seed);
+ for(const frame of frames)advanceRunTick(session,frame);
+ return {score:session.score,coinsCollected:session.coinsCollected,
+  chestCollected:session.chestCollected,elapsedMs:session.tick*TICK_MS,
+  finalX:Math.round(session.player.x*1000)/1000,
+  finalY:Math.round(session.player.y*1000)/1000};
+}
+
+// Versioned V6 simulation: historic score replay continues to use makeMap V1.
+// Never silently reinterpret existing run IDs, scores or audit logs.
+export function createRunSessionV6(level,seed){
+ const map=makeMapV6(level,seed);
+ return {map,player:{...map.spawn},score:0,coinsCollected:0,chestCollected:false,tick:0};
+}
+export function replayRunV6({level,seed,frames}){
+ if(!Array.isArray(frames)||frames.length<1||frames.length>MAX_TICKS)
+  throw Error("Invalid frame count");
+ const session=createRunSessionV6(level,seed);
  for(const frame of frames)advanceRunTick(session,frame);
  return {score:session.score,coinsCollected:session.coinsCollected,
   chestCollected:session.chestCollected,elapsedMs:session.tick*TICK_MS,
