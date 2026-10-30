@@ -21,6 +21,8 @@ export async function handleV16Request(req,env,testing={}){
  if(!['/api/v16/world','/api/v16/join','/api/v16/move','/api/v16/collect'].includes(url.pathname))return json({error:'Not found'},404,headers);
  const read=url.pathname==='/api/v16/world';
  if(req.method!==(read?'GET':'POST'))return json({error:'Method not allowed'},405,headers);
+ // World polling is opt-in on staging: public traffic to a DO costs CPU/storage.
+ if(read&&env.ENABLE_V16_READS!=='true')return json({error:'World reads not enabled'},403,headers);
  if(!read&&env.ENABLE_V16_WRITES!=='true')return json({error:'Online writes not enabled'},403,headers);
  if(!env.ROOMS?.idFromName||!env.ROOMS?.get)return json({error:'World storage not configured'},503,headers);
  let uid=null,input={};
@@ -45,7 +47,10 @@ export async function handleV16Request(req,env,testing={}){
  }
  const name=env.ROOMS.idFromName(scope),stub=env.ROOMS.get(name);
  const action=url.pathname.split('/').pop();
- const forwarded=new Request('https://internal/'+action,{method:read?'GET':'POST',headers:{'content-type':'application/json','x-internal-uid':uid||'','x-internal-scope':scope},body:read?undefined:JSON.stringify(input)});
+ const since=url.searchParams.get('since');
+ if(read&&since!==null&&(!/^(0|[1-9][0-9]{0,14})$/.test(since)||!Number.isSafeInteger(Number(since))))
+  return json({error:'Invalid version'},400,headers);
+ const forwarded=new Request('https://internal/'+action,{method:read?'GET':'POST',headers:{'content-type':'application/json','x-internal-uid':uid||'','x-internal-scope':scope,...(read&&since!==null?{'x-world-since':since}:{})},body:read?undefined:JSON.stringify(input)});
  try{const response=await stub.fetch(forwarded);return json(await response.json(),response.status,headers)}catch{return json({error:'World temporarily unavailable'},503,headers)}
 }
 export default {fetch(req,env){return handleV16Request(req,env)}};
@@ -67,13 +72,20 @@ export class V16WorldRoom {
     if(action==='world'){
      const previous=this.room.version,world=this.room.publicView(now);
      if(previous!==this.room.version)await this.state.storage.put('v16-state',this.room.save());
+     const since=req.headers.get('x-world-since');
+     if(since!==null&&Number(since)===world.version)
+      return json({ok:true,unchanged:true,version:world.version,scope});
      return json({ok:true,world});
     }
     if(req.method!=='POST'||!uid)return json({error:'Unauthorized internal operation'},403);
     const body=await req.json();let result;
     if(action==='join')result=this.room.join(uid,now,body.name);
     else if(action==='move')result=this.room.move(uid,[body.dx,body.dy],now);
-    else if(action==='collect')result=this.room.collect(uid,body.requestId,now);
+    else if(action==='collect'){
+     if(!Number.isSafeInteger(body.claimSeq)||body.claimSeq<1)
+      return json({error:'claimSeq required (start with nextClaimSeq from join)'},400);
+     result=this.room.collect(uid,body.requestId,now,body.claimSeq);
+    }
     else return json({error:'No such action'},404);
     // Persist score, cooldowns and dedupe IDs before confirming collection.
     // Player positions are ephemeral: clients must join after a DO restart.
