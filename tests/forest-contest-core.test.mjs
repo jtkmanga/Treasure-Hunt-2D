@@ -49,14 +49,14 @@ test("verified paid entitlement 20/10 baht 24 hours, expires, anti-replay, canno
  assert.equal(core.personalSnapshot("alice",now+2*86_400_000).boosters.doubleCoins,0);
 });
 test("Free weekly and VIP daily snapshots retain past winner but reset score",()=>{
- const before=Date.parse("2026-10-31T16:59:59Z"),after=before+1000;
+ const before=Date.parse("2026-10-30T16:59:59Z"),after=before+1000;
  const free=new ForestContestCore({scope:"free1",now:before});
  const vip=new ForestContestCore({scope:"vip1",now:before});
  free.join("a",before,{displayName:"Winner"});
  vip.join("a",before,{vipExpiresAt:after+86_400_000,displayName:"VIP Winner"});
  free.scores.set("a",123);vip.scores.set("a",456);
  free.rotatePeriod(after);vip.rotatePeriod(after);
- assert.equal(free.scores.get("a")||0,123); // Saturday 23:59:59 TH -> Sunday 00:00:00? Actually Sunday reset, see test fixture
+ assert.equal(free.scores.get("a")||0,123); // Friday to Saturday: Free does not reset
  assert.equal(vip.scores.get("a")||0,0);
  assert.equal(vip.winners[0].winner.score,456);
  const sun=Date.parse("2026-10-31T17:00:00Z");
