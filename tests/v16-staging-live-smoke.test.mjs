@@ -63,7 +63,8 @@ test('beta login mobile page is actually served from deployed Worker',async()=>{
  'Google Login ไม่สำเร็จ','auth/popup-blocked','checkFirebaseProject(apiKey)',
  'identitytoolkit.googleapis.com/v1/projects?key=',
  'strict-origin-when-cross-origin','API ไม่ส่ง projectId','preflight.confirmed',
- 'เซิร์ฟเวอร์จะปฏิเสธโทเค็น'])assert.ok(html.includes(part),part);
+ 'เซิร์ฟเวอร์จะปฏิเสธโทเค็น','projectId==="439998873632"',
+ 'Project Number 439998873632'])assert.ok(html.includes(part),part);
  assert.equal(html.includes('Web API Key ชี้ไป Firebase โปรเจกต์อื่น ไม่ใช่ treasure-hunt-2d'),false);
  assert.ok(html.length>5000);
  assert.ok(!html.includes('V16_BETA_UIDS'));
