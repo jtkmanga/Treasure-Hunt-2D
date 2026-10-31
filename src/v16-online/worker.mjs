@@ -6,11 +6,14 @@ import {verifyAppCheck} from './appcheck.mjs';
 import {authorizeClosedBeta} from './beta-access.mjs';
 import {verifyFirebaseLiveAccount} from './live-account.mjs';
 import {BETA_LOGIN_PAGE} from './beta-login-page.mjs';
+import {GAME_PREVIEW_PAGE} from './game-preview-page.mjs';
 import {V16Room} from './room.mjs';
 import {periodFor} from './periods.mjs';
 const SCOPES={free:'free1',vip:'vip1',free1:'free1',vip1:'vip1'};
 // Dedicated isolated DO; pilot claims NEVER affect Free Server ranking or coins.
 const PILOT_ROOM='free1-coin-race-pilot-v1';
+// World-accurate playable forest lives in a third DO, never Free ranked state.
+const PREVIEW_ROOM='free1-forest-game-preview-v1';
 // Explicit Staging page origin. Browsers send Origin on same-origin POSTs;
 // the older CORS policy only accepted the separate GitHub Pages frontend.
 const STAGING_ORIGIN='https://treasure-hunt-2d-v16-world-staging.hjinffv5426.workers.dev';
@@ -35,21 +38,35 @@ export async function handleV16Request(req,env,testing={}){
    ...headers,
   }});
  }
- if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true'},200,headers);
+ if(url.pathname==='/beta-game'){
+  if(req.method!=='GET')return json({error:'Method not allowed'},405,headers);
+  // This HTML is intentionally embeddable ONLY by our own beta-login parent.
+  return new Response(GAME_PREVIEW_PAGE,{status:200,headers:{
+   'content-type':'text/html; charset=utf-8','cache-control':'no-store',
+   'x-content-type-options':'nosniff','x-frame-options':'SAMEORIGIN',
+   'referrer-policy':'no-referrer',
+   'content-security-policy':"default-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'",
+   ...headers,
+  }});
+ }
+ if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
  if(!scope)return json({error:'Invalid server'},400,headers);
  const pilotMatch=/^\/api\/v16\/pilot\/(world|join|collect)$/.exec(url.pathname);
- const pilot=!!pilotMatch;
- if(!pilot&&!['/api/v16/auth-check','/api/v16/world','/api/v16/join','/api/v16/move','/api/v16/collect'].includes(url.pathname))return json({error:'Not found'},404,headers);
+ const previewMatch=/^\/api\/v16\/preview\/(world|join|move|collect)$/.exec(url.pathname);
+ const pilot=!!pilotMatch,preview=!!previewMatch;
+ if(!pilot&&!preview&&!['/api/v16/auth-check','/api/v16/world','/api/v16/join','/api/v16/move','/api/v16/collect'].includes(url.pathname))return json({error:'Not found'},404,headers);
  const authCheck=url.pathname==='/api/v16/auth-check';
- const read=url.pathname==='/api/v16/world'||(pilot&&pilotMatch[1]==='world');
+ const read=url.pathname==='/api/v16/world'||(pilot&&pilotMatch[1]==='world')||(preview&&previewMatch[1]==='world');
  if(req.method!==((read||authCheck)?'GET':'POST'))return json({error:'Method not allowed'},405,headers);
  // Pilot runs in an entirely separate DO with its own, non-public scores.
  // Never loosen the production Free-world write gate for a beta experiment.
  if(pilot&&(scope!=='free1'||env.ENABLE_V16_PILOT_WRITES!=='true'))
   return json({error:'Isolated coin pilot not enabled'},403,headers);
+ if(preview&&(scope!=='free1'||env.ENABLE_V16_GAME_PREVIEW!=='true'))
+  return json({error:'Isolated game preview not enabled'},403,headers);
  // World polling is opt-in on staging: public traffic to a DO costs CPU/storage.
- if(!pilot&&!authCheck&&read&&env.ENABLE_V16_READS!=='true')return json({error:'World reads not enabled'},403,headers);
- if(!pilot&&!authCheck&&!read&&env.ENABLE_V16_WRITES!=='true')return json({error:'Online writes not enabled'},403,headers);
+ if(!pilot&&!preview&&!authCheck&&read&&env.ENABLE_V16_READS!=='true')return json({error:'World reads not enabled'},403,headers);
+ if(!pilot&&!preview&&!authCheck&&!read&&env.ENABLE_V16_WRITES!=='true')return json({error:'Online writes not enabled'},403,headers);
  if(!authCheck&&(!env.ROOMS?.idFromName||!env.ROOMS?.get))return json({error:'World storage not configured'},503,headers);
  let uid=null,input={};
  // Closed-beta world snapshots carry live scores and cause Durable Object reads.
@@ -68,7 +85,7 @@ export async function handleV16Request(req,env,testing={}){
    // Missing/invalid allowlists deny everyone (including admin users).
    if(!authorizeClosedBeta(identity,env).allowed)
     return json({error:'Closed Beta invitation required'},403,headers);
-   const limit=await env.V16_RATE_LIMITER.limit({key:(authCheck?'auth:':pilot?'pilot:':read?'world:':'write:')+uid});
+   const limit=await env.V16_RATE_LIMITER.limit({key:(authCheck?'auth:':pilot?'pilot:':preview?'preview:':read?'world:':'write:')+uid});
    if(!limit?.success)return json({error:'Too many requests'},429,headers);
    let person;
    try{
@@ -91,7 +108,7 @@ export async function handleV16Request(req,env,testing={}){
  }
  // Auth probe never accesses a Durable Object, exposes a UID/email or grants points.
  if(authCheck)return json({ok:true,googleVerified:true,appCheckVerified:true,accountActive:true,betaInvited:true,scope:'free',writesEnabled:false},200,headers);
- const name=env.ROOMS.idFromName(pilot?PILOT_ROOM:scope),stub=env.ROOMS.get(name);
+ const name=env.ROOMS.idFromName(preview?PREVIEW_ROOM:pilot?PILOT_ROOM:scope),stub=env.ROOMS.get(name);
  const action=(pilot?'pilot-':'')+url.pathname.split('/').pop();
  const since=url.searchParams.get('since');
  if(read&&since!==null&&(!/^(0|[1-9][0-9]{0,14})$/.test(since)||!Number.isSafeInteger(Number(since))))
