@@ -75,7 +75,10 @@ test('beta login mobile page is actually served from deployed Worker',async()=>{
  'globalThis.google.accounts.id.renderButton',
  'signInWithCredential(auth,GoogleAuthProvider.credential(response.credential))',
  'Authorized JavaScript origin','id="worldPanel"','id="worldRead"',
- 'api/v16/world?scope=free','describeWorld(world)','เหรียญพร้อมเก็บ:'])assert.ok(html.includes(part),part);
+ 'api/v16/world?scope=free','describeWorld(world)','เหรียญพร้อมเก็บ:',
+ 'id="worldFingerprint"','function comparableWorld(world)',
+ 'crypto.subtle.digest("SHA-256",bytes)','await showWorldFingerprint(world)',
+ 'await showWorldFingerprint(lastWorldSnapshot)'])assert.ok(html.includes(part),part);
  assert.equal(html.includes('Web API Key ชี้ไป Firebase โปรเจกต์อื่น ไม่ใช่ treasure-hunt-2d'),false);
  assert.ok(html.length>5000);
  assert.ok(!html.includes('V16_BETA_UIDS'));
