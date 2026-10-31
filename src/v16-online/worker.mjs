@@ -109,7 +109,11 @@ export async function handleV16Request(req,env,testing={}){
  // Auth probe never accesses a Durable Object, exposes a UID/email or grants points.
  if(authCheck)return json({ok:true,googleVerified:true,appCheckVerified:true,accountActive:true,betaInvited:true,scope:'free',writesEnabled:false},200,headers);
  const name=env.ROOMS.idFromName(preview?PREVIEW_ROOM:pilot?PILOT_ROOM:scope),stub=env.ROOMS.get(name);
- const action=(pilot?'pilot-':'')+url.pathname.split('/').pop();
+ const route=url.pathname.split('/').pop();
+  // Use explicit preview actions: never fall through to the legacy Free/VIP move.
+  // A Durable Object still running outdated code rejects these actions instead
+  // of silently dispatching new move packets to the old axes-only handler.
+  const action=(preview&&['join','move'].includes(route)?'preview-':pilot?'pilot-':'')+route;
  const since=url.searchParams.get('since');
  if(read&&since!==null&&(!/^(0|[1-9][0-9]{0,14})$/.test(since)||!Number.isSafeInteger(Number(since))))
   return json({error:'Invalid version'},400,headers);
@@ -166,9 +170,9 @@ export class V16WorldRoom {
     // the last persisted state before accepting another claim; otherwise a
     // transient storage error could leave scores/coins changed only in RAM.
     const playerBefore=new Map([...this.room.players].map(([id,p])=>[id,{...p}]));
-    if(action==='join'){
+    if(action==='join'||action==='preview-join'){
       result=this.room.join(uid,now,body.name);
-      if(req.headers.get('x-internal-preview')==='1'){
+      if(action==='preview-join'){
        const p=this.room.requirePlayer(uid);
        p.previewSeq=0;p.previewAck=null;p.previewCreditMs=100;p.previewBudgetAt=now;p.lastAt=now;
        p.previewNonce=crypto.randomUUID();result.previewNonce=p.previewNonce;
@@ -182,9 +186,8 @@ export class V16WorldRoom {
      p.x=c.x;p.y=c.y;p.lastAt=now;
      result=this.room.privateView(uid,now);
     }
-    else if(action==='move')result=req.headers.get('x-internal-preview')==='1'
-      ?this.room.movePreview(uid,body.frames,body.seq,now,body.nonce)
-      :this.room.move(uid,[body.dx,body.dy],now);
+    else if(action==='preview-move')result=this.room.movePreview(uid,body.frames,body.seq,now,body.nonce);
+     else if(action==='move')result=this.room.move(uid,[body.dx,body.dy],now);
     else if(action==='collect'||action==='pilot-collect'){
      if(!Number.isSafeInteger(body.claimSeq)||body.claimSeq<1)
       return json({error:'claimSeq required (start with nextClaimSeq from join)'},400);
@@ -193,7 +196,7 @@ export class V16WorldRoom {
     else return json({error:'No such action'},404);
     // Persist score, cooldowns and dedupe IDs before confirming collection.
     // Player positions are ephemeral: clients must join after a DO restart.
-    if(action==='join'||action==='collect'||action==='pilot-join'||action==='pilot-collect'){
+    if(action==='join'||action==='preview-join'||action==='collect'||action==='pilot-join'||action==='pilot-collect'){
      try {
       await this.state.storage.put('v16-state',this.room.save());
      } catch {
