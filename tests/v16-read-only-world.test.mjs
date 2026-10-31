@@ -73,7 +73,7 @@ test('All score-changing API routes remain disabled even for verified invited us
 test('Mobile world read UI requires completed beta check, uses in-memory tokens and displays safe summary',()=>{
  assert.match(BETA_LOGIN_PAGE,/id="worldRead"[^>]*disabled/);
  assert.match(BETA_LOGIN_PAGE,/id="worldState"/);
- assert.match(BETA_LOGIN_PAGE,/betaVerified=true;el\("worldRead"\)\.disabled=false/);
+ assert.match(BETA_LOGIN_PAGE,/betaVerified=true;previewVerified=true;el\("worldRead"\)\.disabled=false/);
  assert.match(BETA_LOGIN_PAGE,/if\(!betaVerified\|\|!ready/);
  assert.match(BETA_LOGIN_PAGE,/auth\.currentUser\.getIdToken\(\),getToken\(appCheck\)/);
  assert.match(BETA_LOGIN_PAGE,/api\/v16\/world\?scope=free/);
