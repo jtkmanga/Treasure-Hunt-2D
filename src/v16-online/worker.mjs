@@ -113,7 +113,7 @@ export async function handleV16Request(req,env,testing={}){
  const since=url.searchParams.get('since');
  if(read&&since!==null&&(!/^(0|[1-9][0-9]{0,14})$/.test(since)||!Number.isSafeInteger(Number(since))))
   return json({error:'Invalid version'},400,headers);
- const forwarded=new Request('https://internal/'+action,{method:read?'GET':'POST',headers:{'content-type':'application/json','x-internal-uid':uid||'','x-internal-scope':scope,...(read&&since!==null?{'x-world-since':since}:{})},body:read?undefined:JSON.stringify(input)});
+ const forwarded=new Request('https://internal/'+action,{method:read?'GET':'POST',headers:{'content-type':'application/json','x-internal-uid':uid||'','x-internal-scope':scope,'x-internal-preview':preview?'1':'0',...(read&&since!==null?{'x-world-since':since}:{})},body:read?undefined:JSON.stringify(input)});
  try{const response=await stub.fetch(forwarded);return json(await response.json(),response.status,headers)}catch{return json({error:'World temporarily unavailable'},503,headers)}
 }
 export default {fetch(req,env){return handleV16Request(req,env)}};
@@ -166,7 +166,13 @@ export class V16WorldRoom {
     // the last persisted state before accepting another claim; otherwise a
     // transient storage error could leave scores/coins changed only in RAM.
     const playerBefore=new Map([...this.room.players].map(([id,p])=>[id,{...p}]));
-    if(action==='join')result=this.room.join(uid,now,body.name);
+    if(action==='join'){
+      result=this.room.join(uid,now,body.name);
+      if(req.headers.get('x-internal-preview')==='1'){
+       const p=this.room.requirePlayer(uid);
+       p.previewSeq=0;p.previewAck=null;p.previewCreditMs=100;p.previewBudgetAt=now;p.lastAt=now;
+      }
+     }
     else if(action==='pilot-join'){
      // Pilot-only server-chosen start next to coin #0. This is NOT exposed
      // on any actual Free/VIP world or ordinary join/move/collect route.
@@ -175,7 +181,9 @@ export class V16WorldRoom {
      p.x=c.x;p.y=c.y;p.lastAt=now;
      result=this.room.privateView(uid,now);
     }
-    else if(action==='move')result=this.room.move(uid,[body.dx,body.dy],now);
+    else if(action==='move')result=req.headers.get('x-internal-preview')==='1'
+      ?this.room.movePreview(uid,body.frames,body.seq,now)
+      :this.room.move(uid,[body.dx,body.dy],now);
     else if(action==='collect'||action==='pilot-collect'){
      if(!Number.isSafeInteger(body.claimSeq)||body.claimSeq<1)
       return json({error:'claimSeq required (start with nextClaimSeq from join)'},400);
