@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "treasure-hunt-2d-v16-world-staging",
+  "main": "./src/v16-online/worker.mjs",
+  "compatibility_date": "2026-10-30",
+  "workers_dev": true,
+  "vars": {
+    "ENABLE_V16_WRITES": "false",
+    "ENABLE_V16_PILOT_WRITES": "true",
+    "ENABLE_V16_GAME_PREVIEW": "true",
+    "ENABLE_V16_READS": "true",
+    "ALLOWED_ORIGIN": "https://treasure-hunt-2d-jtk.pages.dev",
+    "FIREBASE_PROJECT_ID": "treasure-hunt-2d",
+    "FIREBASE_PROJECT_NUMBER": "439998873632",
+    "FIREBASE_APP_ID": "1:439998873632:web:4b694f8159d9d9e0163c45"
+  },
+  "ratelimits": [{"name": "V16_RATE_LIMITER", "namespace_id": "163101", "simple": {"limit": 360, "period": 60}}],
+  "durable_objects": {"bindings": [{"name": "ROOMS", "class_name": "V16WorldRoom"}]},
+  "migrations": [{"tag":"v1", "new_sqlite_classes": ["V16WorldRoom"]}]
+}

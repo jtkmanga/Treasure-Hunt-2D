@@ -1,0 +1,36 @@
+# Never uploads a Worker, creates a Durable Object, or touches Cloudflare billing.
+# Compiles the future Closed Beta Worker in GitHub Actions, without credentials.
+name: V16 Closed Beta staging Worker dry-run
+on:
+  pull_request:
+    paths:
+      - 'src/v16-online/**'
+      - 'src/online/firebase-auth.mjs'
+      - 'wrangler.v16-online-staging.jsonc'
+      - '.github/workflows/v16-staging-dry-run.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compile-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Checkout V16 source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify read-only Staging flags (writes always disabled)
+        run: |
+          grep -q '"ENABLE_V16_WRITES": "false"' wrangler.v16-online-staging.jsonc
+          grep -q '"ENABLE_V16_READS": "true"' wrangler.v16-online-staging.jsonc
+          grep -q '"ENABLE_V16_PILOT_WRITES": "true"' wrangler.v16-online-staging.jsonc
+          grep -q '"ENABLE_V16_GAME_PREVIEW": "true"' wrangler.v16-online-staging.jsonc
+      - name: Build Cloudflare Worker without publishing it
+        run: npx --yes wrangler@4 deploy --config wrangler.v16-online-staging.jsonc --dry-run --outdir .wrangler/v16-closed-beta
+      - name: Verify build emitted a Worker bundle
+        run: |
+          test -n "$(find .wrangler/v16-closed-beta -type f -name '*.js' -print -quit)"
+          echo "V16 staging Worker compiles. No Cloudflare resources were deployed."
