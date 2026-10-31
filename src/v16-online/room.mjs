@@ -74,7 +74,8 @@ export class V16Room {
  // Every batch is bounded by real elapsed server time plus a fixed 100ms
  // initial credit. Jitter cannot erase movement, and clients cannot mint
  // additional movement by replaying or fabricating elapsed timestamps.
- movePreview(uid,frames,seq,now){validNow(now);const p=this.requirePlayer(uid);
+ movePreview(uid,frames,seq,now,nonce){validNow(now);const p=this.requirePlayer(uid);
+  ensure(typeof nonce==='string'&&nonce===p.previewNonce,'Stale preview movement session');
   ensure(Number.isSafeInteger(seq)&&seq>0,'Invalid preview move sequence');
   if(seq===p.previewSeq)return {...p.previewAck}; // Network retry: no double movement.
   ensure(seq===(p.previewSeq||0)+1,'Out-of-order preview movement');
