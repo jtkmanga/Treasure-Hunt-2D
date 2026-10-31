@@ -62,7 +62,7 @@ test('Google Identity Services button exchanges only in-memory credential throug
  assert.ok(js.includes('signInWithCredential(auth,GoogleAuthProvider.credential(response.credential))'));
  assert.ok(!js.includes('sessionStorage.setItem("google'));
  assert.ok(!js.includes('localStorage.setItem'));
- assert.ok(js.includes('clientId===clientId'));
+ assert.ok(js.includes('gisClientId===clientId'));
  const withoutImports=js.replace(/^import\s+.+?;\s*$/gm,'');
  assert.doesNotThrow(()=>new vm.Script(withoutImports));
 });
