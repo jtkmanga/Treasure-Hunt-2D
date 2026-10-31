@@ -49,7 +49,7 @@ export async function handleV16Request(req,env,testing={}){
    ...headers,
   }});
  }
- if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
+ if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',movementProtocol:'Sync V16.24',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
  if(!scope)return json({error:'Invalid server'},400,headers);
  const pilotMatch=/^\/api\/v16\/pilot\/(world|join|collect)$/.exec(url.pathname);
  const previewMatch=/^\/api\/v16\/preview\/(world|join|move|collect)$/.exec(url.pathname);
