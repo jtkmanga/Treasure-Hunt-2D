@@ -4,6 +4,7 @@
 import {verifyFirebaseIdToken} from '../online/firebase-auth.mjs';
 import {verifyAppCheck} from './appcheck.mjs';
 import {authorizeClosedBeta} from './beta-access.mjs';
+import {verifyFirebaseLiveAccount} from './live-account.mjs';
 import {V16Room} from './room.mjs';
 import {periodFor} from './periods.mjs';
 const SCOPES={free:'free1',vip:'vip1',free1:'free1',vip1:'vip1'};
@@ -32,7 +33,7 @@ export async function handleV16Request(req,env,testing={}){
  // Treat reads as authenticated, rate-limited requests, not a public shortcut.
  {
   if(!env.FIREBASE_PROJECT_ID||!env.FIREBASE_PROJECT_NUMBER||!env.FIREBASE_APP_ID)return json({error:'Firebase security not configured'},503,headers);
-  if(!env.ACCOUNT_STATUS?.fetch||!env.V16_RATE_LIMITER?.limit)return json({error:'Security gates not configured'},503,headers);
+  if(!(env.ACCOUNT_STATUS?.fetch||env.FIREBASE_WEB_API_KEY)||!env.V16_RATE_LIMITER?.limit)return json({error:'Security gates not configured'},503,headers);
   const match=/^Bearer ([A-Za-z0-9_.-]{100,8192})$/.exec(req.headers.get('authorization')||'');
   if(!match)return json({error:'Google sign-in required'},401,headers);
   try{
@@ -44,12 +45,23 @@ export async function handleV16Request(req,env,testing={}){
    // Missing/invalid allowlists deny everyone (including admin users).
    if(!authorizeClosedBeta(identity,env).allowed)
     return json({error:'Closed Beta invitation required'},403,headers);
-   const status=await env.ACCOUNT_STATUS.fetch('https://internal/account-status',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({uid})});
-   if(!status.ok)throw Error('Account status unavailable');
-   const person=await status.json();
-   if(person.uid!==uid||person.disabled!==false||person.revoked!==false)throw Error('Account cannot participate');
    const limit=await env.V16_RATE_LIMITER.limit({key:(read?'world:':'write:')+uid});
    if(!limit?.success)return json({error:'Too many requests'},429,headers);
+   let person;
+   try{
+    if(env.ACCOUNT_STATUS?.fetch){
+     const status=await env.ACCOUNT_STATUS.fetch('https://internal/account-status',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({uid})});
+     if(!status.ok)throw Error('Account status unavailable');
+     person=await status.json();
+    }else{
+     person=await verifyFirebaseLiveAccount({
+      uid,idToken:match[1],authTime:identity.authTime,
+      apiKey:env.FIREBASE_WEB_API_KEY,
+     });
+    }
+   }catch{return json({error:'Live account verification temporarily unavailable'},503,headers);}
+   if(person?.uid!==uid||person.disabled!==false||person.revoked!==false)
+    return json({error:'Account not permitted'},403,headers);
    if(scope==='vip1')return json({error:'VIP verification pending'},403,headers);
    if(!read)input=await bodyJSON(req);
   }catch{return json({error:'Authentication, App Check or account validation failed'},401,headers);}
