@@ -23,17 +23,29 @@ test('Firebase project preflight checks key and allowed staging hostname without
    'treasure-hunt-2d-v16-world-staging.hjinffv5426.workers.dev'
   ]});
  });
- assert.equal(await check(k),true);
+ const result=await check(k);
+ assert.equal(result.confirmed,true);
+ assert.match(result.note,/Identity Toolkit/);
  assert.equal(calls.length,1);
  assert.match(calls[0].url,/identitytoolkit\.googleapis\.com\/v1\/projects\?key=/);
  assert.equal(calls[0].options.referrerPolicy,'strict-origin-when-cross-origin');
  assert.equal(calls[0].options.cache,'no-store');
 });
-test('wrong Firebase project, missing authorized domain and restricted browser key fail visibly',async()=>{
+test('wrong, absent project IDs and missing domain are warnings, not false-positive hard blocks',async()=>{
  const mismatched=helper(async()=>ok({projectId:'another-project'}));
- await assert.rejects(()=>mismatched(k),/โปรเจกต์อื่น/);
+ const notMatching=await mismatched(k);
+ assert.equal(notMatching.confirmed,false);
+ assert.match(notMatching.note,/another-project/);
  const missing=helper(async()=>ok({projectId:'treasure-hunt-2d',authorizedDomains:['localhost']}));
- await assert.rejects(()=>missing(k),/Authorized domains/);
+ const missingDomain=await missing(k);
+ assert.equal(missingDomain.confirmed,false);
+ assert.match(missingDomain.note,/authorizedDomains/);
+ const omitted=helper(async()=>ok({authorizedDomains:['treasure-hunt-2d-v16-world-staging.hjinffv5426.workers.dev']}));
+ const noProjectId=await omitted(k);
+ assert.equal(noProjectId.confirmed,false);
+ assert.match(noProjectId.note,/ไม่ส่ง projectId/);
+ const entirelyEmpty=helper(async()=>ok({}));
+ assert.equal((await entirelyEmpty(k)).confirmed,false);
  const blocked=helper(async()=>ok({error:{message:'API_KEY_HTTP_REFERRER_BLOCKED'}},403));
  await assert.rejects(()=>blocked(k),/API_KEY_HTTP_REFERRER_BLOCKED/);
 });
