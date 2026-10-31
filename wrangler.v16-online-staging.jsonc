@@ -6,6 +6,7 @@
   "workers_dev": true,
   "vars": {
     "ENABLE_V16_WRITES": "false",
+    "ENABLE_V16_PILOT_WRITES": "true",
     "ENABLE_V16_READS": "true",
     "ALLOWED_ORIGIN": "https://treasure-hunt-2d-jtk.pages.dev",
     "FIREBASE_PROJECT_ID": "treasure-hunt-2d",
