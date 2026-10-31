@@ -80,6 +80,10 @@ test('Staging playable forest is iframe-only HTML and anonymous preview API deni
   'frame=[dx,dy,0]','src="/beta-game"'])
   if(part==='src="/beta-game"')assert.ok(!html.includes(part));
   else assert.ok(html.includes(part),part);
+ assert.ok(html.includes('window.addEventListener("blur",()=>{clearControls();})'), 'inactive Android window must not pause');
+ assert.ok(html.includes('previewPlanCorrection(r.result,clientAtSend)'), 'staging uses delayed reply compensation');
+ assert.ok(html.includes('previewApplyCorrection()'), 'staging applies bounded motion correction');
+ assert.ok(!html.includes('if(dist>.65){session.player.x=position.x'), 'staging must not teleport on delayed acknowledgment');
  for(const path of ['world','join','move','collect']){
   const post=path!=='world';
   const res=await fetch(BASE+'/api/v16/preview/'+path+'?scope=free',{
