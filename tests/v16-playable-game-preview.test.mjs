@@ -89,11 +89,11 @@ test('preview enforces server-side movement speed, collision and pickup distance
  const a=await t.call('A','preview/join',{name:'Explorer'});
  assert.equal(a.status,200);
  const start=a.result.result.position;
- const move=await t.call('A','preview/move',{dx:100,dy:100});
+ const move=await t.call('A','preview/move',{seq:1,frames:[[100,100],[100,100]]});
  assert.equal(move.status,200);
  const end=move.result.result;
  assert.ok(Math.hypot(end.x-start.x,end.y-start.y)<=0.8,'one move does not teleport to a distant coin');
- const invalid=await t.call('A','preview/move',{dx:10000,dy:0});
+ const invalid=await t.call('A','preview/move',{seq:2,frames:[[10000,0]]});
  assert.equal(invalid.status,400);
  const claim=await t.call('A','preview/collect',{requestId:'claim-far-away-001',claimSeq:1});
  assert.equal(claim.status,200);
@@ -103,6 +103,53 @@ test('preview enforces server-side movement speed, collision and pickup distance
  const v=t.instances.get('free1-forest-game-preview-v1');
  assert.equal(v.room.players.get('alice').x,end.x);
  assert.equal(v.room.players.get('alice').y,end.y);
+});
+test('4G-delayed batch replays every 50ms tick without dropping elapsed movement',async()=>{
+ const t=rig();
+ const joined=await t.call('A','preview/join',{name:'LagProof'});
+ assert.equal(joined.status,200);
+ const room=t.instances.get('free1-forest-game-preview-v1').room;
+ const player=room.requirePlayer('alice');
+ const start={...player};
+ // Simulate 600ms of real time before receiving a packet of 12 local ticks.
+ player.previewBudgetAt=Date.now()-650;
+ const frames=Array.from({length:12},()=>[100,0]);
+ const result=await t.call('A','preview/move',{seq:1,frames});
+ assert.equal(result.status,200);
+ const expected={x:start.x,y:start.y};
+ function canWalk(x,y){
+  return [[x-.26,y-.26],[x+.26,y-.26],[x-.26,y+.26],[x+.26,y+.26]]
+   .every(([a,b])=>room.map.tiles[Math.floor(b)]?.[Math.floor(a)]===0);
+ }
+ for(let k=0;k<12;k++)for(let step=0;step<2;step++){
+  const x=expected.x+3.9*.05/2;
+  if(canWalk(x,expected.y))expected.x=x;
+ }
+ assert.ok(Math.abs(result.result.result.x-expected.x)<1e-8);
+ assert.ok(Math.abs(result.result.result.y-expected.y)<1e-8);
+ // Retry with an identical sequence after a missing HTTP response.
+ const retry=await t.call('A','preview/move',{seq:1,frames});
+ assert.equal(retry.status,200);
+ assert.deepEqual(retry.result.result,result.result.result);
+ assert.equal(room.requirePlayer('alice').x,expected.x);
+ assert.equal(room.requirePlayer('alice').previewSeq,1);
+});
+test('preview movement rate budget rejects forged speed, malformed frames and skipped sequences',async()=>{
+ const t=rig();
+ await t.call('A','preview/join',{name:'Guard'});
+ const room=t.instances.get('free1-forest-game-preview-v1').room;
+ const p=room.requirePlayer('alice');
+ const now=Date.now();
+ p.previewCreditMs=100;p.previewBudgetAt=now;
+ const ok=room.movePreview('alice',[[0,0],[0,0]],1,now);
+ assert.ok(Number.isFinite(ok.x));
+ assert.throws(()=>room.movePreview('alice',[[100,0]],2,now),/elapsed server time/);
+ assert.throws(()=>room.movePreview('alice',[[100,0]],3,now+100),/Out-of-order/);
+ assert.throws(()=>room.movePreview('alice',[[500,0]],2,now+100),/Invalid preview frame/);
+ assert.throws(()=>room.movePreview('alice',Array.from({length:41},()=>[0,0]),2,now+100),/Invalid preview movement batch/);
+ const moved=room.movePreview('alice',[[100,0]],2,now+100);
+ assert.ok(Number.isFinite(moved.x));
+ assert.deepEqual(room.movePreview('alice',[[100,0]],2,now+101),moved);
 });
 test('preview cannot be accessed anonymously, by VIP, or when its independent flag is disabled',async()=>{
  const t=rig();
@@ -141,7 +188,7 @@ test('rendered V16 game preserves approved forest, HUD and camera but disables o
  assert.ok(GAME_PREVIEW_PAGE.includes('V16 Forest 100×100'));
  assert.ok(GAME_PREVIEW_PAGE.includes('frame=[dx,dy,0]'),'offline engine must never mint coins from button');
  assert.ok(GAME_PREVIEW_PAGE.includes('previewRequest("collect",previewPendingClaim)'));
- assert.ok(GAME_PREVIEW_PAGE.includes('previewRequest("move",{dx,dy})'));
+ assert.ok(GAME_PREVIEW_PAGE.includes('previewRequest("move",{seq,frames:sent.map(f=>[f.dx,f.dy])})'));
  assert.ok(GAME_PREVIEW_PAGE.includes('previewRequest("world")'));
  assert.ok(GAME_PREVIEW_PAGE.includes('previewRequest("join",{name:previewNickname()})'));
  assert.ok(GAME_PREVIEW_PAGE.includes('session.map.coins'));
@@ -206,7 +253,7 @@ test('an asynchronous server move receipt cannot teleport the visual player',()=
  const before={...context.session.player};
  context.previewApplyCorrection();
  assert.ok(Math.hypot(context.session.player.x-before.x,context.session.player.y-before.y)<=.040001);
- assert.match(html,/const clientAtSend=\{x:session\.player\.x,y:session\.player\.y\}/);
+ assert.match(html,/const clientAtSend=\{\.\.\.sent\[sent\.length-1\]\.after\}/);
  assert.match(html,/previewPlanCorrection\(r\.result,clientAtSend\)/);
  assert.doesNotMatch(html,/if\(dist>\.65\)\{session\.player\.x=position\.x/);
 });
