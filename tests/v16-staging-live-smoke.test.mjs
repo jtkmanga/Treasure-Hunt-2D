@@ -70,7 +70,7 @@ test('mobile Staging origin reaches authentication instead of Origin denied',asy
 test('Staging playable forest is iframe-only HTML and anonymous preview API denied',async()=>{
  const game=await fetch(BASE+'/beta-game',{signal:AbortSignal.timeout(15000)});
  assert.equal(game.status,200);
- assert.match(game.headers.get('content-type'),/text\\/html/i);
+ assert.ok(game.headers.get('content-type')?.includes('text/html'));
  assert.equal(game.headers.get('x-frame-options'),'SAMEORIGIN');
  assert.match(game.headers.get('content-security-policy'),/frame-ancestors 'self'/);
  assert.match(game.headers.get('content-security-policy'),/connect-src 'none'/);
