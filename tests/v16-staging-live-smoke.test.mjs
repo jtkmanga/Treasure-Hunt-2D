@@ -13,6 +13,7 @@ test('isolated V16 staging Worker is alive with reads only and no score writes',
  assert.equal(data.writesEnabled,false);
  assert.equal(data.readsEnabled,true);
  assert.equal(data.pilotEnabled,true);
+ assert.equal(data.gamePreviewEnabled,true);
  assert.equal(health.headers.get('cache-control'),'no-store');
 });
 test('anonymous world reads are denied and score writes stay closed',async()=>{
