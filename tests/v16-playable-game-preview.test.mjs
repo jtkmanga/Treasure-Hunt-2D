@@ -255,6 +255,8 @@ test('an asynchronous server move receipt cannot teleport the visual player',()=
  assert.ok(Math.hypot(context.session.player.x-before.x,context.session.player.y-before.y)<=.040001);
  assert.match(html,/const clientAtSend=\{\.\.\.sent\[sent\.length-1\]\.after\}/);
  assert.match(html,/previewPlanCorrection\(r\.result,clientAtSend\)/);
+ assert.match(html,/epoch!==previewMoveEpoch/,'late response from a former join must not change player position');
+ assert.match(html,/if\(epoch===previewMoveEpoch\)previewMoving=false/);
  assert.doesNotMatch(html,/if\(dist>\.65\)\{session\.player\.x=position\.x/);
 });
 
