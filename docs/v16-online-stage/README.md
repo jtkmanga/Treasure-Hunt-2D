@@ -34,3 +34,15 @@ This package preserves the approved V16 Calm Motion view (not the retired V8 art
 5. Move eventual ranked score ledger into a durable database/event log before opening public competition, and independently verify Slip2Go payment confirmations for 20/10 THB boosts; public payments remain OFF.
 
 Never merge/roll out this staging foundation as a production game without these checks.
+
+## Live Free-plan Staging milestone (2026-10-31)
+
+The account owner supplied a Cloudflare Billing > Subscriptions screenshot that shows **Workers Free — Active** with **no payment method on file**. Current official Cloudflare pricing documentation confirms SQLite-backed Durable Objects are supported on Workers Free, where requests/storage/compute have hard daily/total limits; the service rejects over-quota operations rather than billing paid overages. See https://developers.cloudflare.com/durable-objects/platform/pricing/ and https://developers.cloudflare.com/workers/platform/pricing/.
+
+- Using Cloudflare's authenticated API, deployed an **isolated new** Worker `treasure-hunt-2d-v16-world-staging`, copying the seven GitHub source modules from this feature branch, with SQLite-backed DO class `V16WorldRoom` and binding `ROOMS`.
+- Both `ENABLE_V16_READS=false` and `ENABLE_V16_WRITES=false` in deployed bindings; only `ALLOWED_ORIGIN=https://treasure-hunt-2d-jtk.pages.dev` configured. No account status, Firebase, App Check enforcement configuration, VIP verifier, or paid checkout is active; write operations remain closed.
+- The new workers.dev subdomain is enabled for this **separate staging Worker only**. Source deployment version at initial upload: `4a4314b4-9e54-48f9-96ca-2b69da626390`.
+- **Live safety verification:** GitHub Actions workflow `V16 live staging closed-gates smoke test` run `41156651978` succeeded. It checked health HTTP 200, anonymous world GET HTTP 403, anonymous score POST HTTP 403, and untrusted-origin HTTP 403. This does **not** establish verified multiplayer, account login or production readiness.
+- GitHub-source gameplay modules and V16-approved HTML remain untouched in production. Staging DO is isolated from the previously deployed 3D game and existing 2D Pages project.
+
+**Next:** configure *real* Firebase Google ID/App Check, account-status/revocation verifier, rate limiting and beta access controls. Test two actual phone browsers with writes enabled only for verified beta accounts; preserve the disabled-by-default production posture. Monitor quota usage. Do not promote to public or enable real payments until validation is complete.
