@@ -5,6 +5,7 @@ import {verifyFirebaseIdToken} from '../online/firebase-auth.mjs';
 import {verifyAppCheck} from './appcheck.mjs';
 import {authorizeClosedBeta} from './beta-access.mjs';
 import {verifyFirebaseLiveAccount} from './live-account.mjs';
+import {BETA_LOGIN_PAGE} from './beta-login-page.mjs';
 import {V16Room} from './room.mjs';
 import {periodFor} from './periods.mjs';
 const SCOPES={free:'free1',vip:'vip1',free1:'free1',vip1:'vip1'};
@@ -19,6 +20,16 @@ export async function handleV16Request(req,env,testing={}){
  const headers=cors(req,env);if(!headers)return json({error:'Origin denied'},403);
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'access-control-max-age':'600'}});
  const url=new URL(req.url),scope=scopeFrom(url);
+ if(url.pathname==='/beta-login'){
+  if(req.method!=='GET')return json({error:'Method not allowed'},405,headers);
+  return new Response(BETA_LOGIN_PAGE,{status:200,headers:{
+   'content-type':'text/html; charset=utf-8','cache-control':'no-store',
+   'x-content-type-options':'nosniff','x-frame-options':'DENY',
+   'referrer-policy':'no-referrer','cross-origin-opener-policy':'same-origin-allow-popups',
+   'content-security-policy':"default-src 'self' https: data:; script-src 'self' https://www.gstatic.com https://www.google.com https://www.recaptcha.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; frame-src https:; connect-src 'self' https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+   ...headers,
+  }});
+ }
  if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',writesEnabled:env.ENABLE_V16_WRITES==='true'},200,headers);
  if(!scope)return json({error:'Invalid server'},400,headers);
  if(!['/api/v16/auth-check','/api/v16/world','/api/v16/join','/api/v16/move','/api/v16/collect'].includes(url.pathname))return json({error:'Not found'},404,headers);
