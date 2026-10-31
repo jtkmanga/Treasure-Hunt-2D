@@ -11,9 +11,12 @@ import {periodFor} from './periods.mjs';
 const SCOPES={free:'free1',vip:'vip1',free1:'free1',vip1:'vip1'};
 // Dedicated isolated DO; pilot claims NEVER affect Free Server ranking or coins.
 const PILOT_ROOM='free1-coin-race-pilot-v1';
+// Explicit Staging page origin. Browsers send Origin on same-origin POSTs;
+// the older CORS policy only accepted the separate GitHub Pages frontend.
+const STAGING_ORIGIN='https://treasure-hunt-2d-v16-world-staging.hjinffv5426.workers.dev';
 const json=(obj,status=200,headers={})=>new Response(JSON.stringify(obj),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff',...headers}});
 function cors(request,env){const origin=request.headers.get('origin');
- if(origin&&origin!==env.ALLOWED_ORIGIN)return null;
+ if(origin&&origin!==env.ALLOWED_ORIGIN&&origin!==STAGING_ORIGIN)return null;
  return origin?{'access-control-allow-origin':origin,'access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'authorization,x-firebase-appcheck,content-type','vary':'Origin'}:{};
 }
 function scopeFrom(url){return SCOPES[url.searchParams.get('scope')||'free']||null;}
