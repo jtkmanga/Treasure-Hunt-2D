@@ -49,7 +49,7 @@ export async function handleV16Request(req,env,testing={}){
    ...headers,
   }});
  }
- if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',movementProtocol:'Sync V16.25',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
+ if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',movementProtocol:'Sync V16.26',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
  // Staging-only read-only probe checks the *actual Durable Object code*.
  // The public Worker health marker alone cannot detect deferred DO upgrades.
  // A shared rate limit prevents this diagnostic from becoming an unbounded DO.
@@ -163,7 +163,7 @@ export class V16WorldRoom {
    if(this.room.scope!==scope)return json({error:'Scope mismatch'},403);
    if(this.storageBlocked)return json({error:'World storage recovery required'},503);
     if(req.method==='GET'&&new URL(req.url).pathname==='/protocol')
-     return json({ok:true,movementProtocol:'Sync V16.25',durableObjectCode:'v16-preview-batched-input-v2'});
+     return json({ok:true,movementProtocol:'Sync V16.26',durableObjectCode:'v16-preview-batched-input-v2'});
    // One alarm per room at the next Bangkok season boundary.
    if(this.state.storage.getAlarm&&this.state.storage.setAlarm&&await this.state.storage.getAlarm()===null)
     await this.state.storage.setAlarm(Date.parse(periodFor(scope,Date.now()).resetsAt));
