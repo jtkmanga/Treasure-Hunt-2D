@@ -67,6 +67,35 @@ test('mobile Staging origin reaches authentication instead of Origin denied',asy
  assert.equal(attack.status,403);
  assert.match((await attack.text()),/Origin denied/);
 });
+test('Staging playable forest is iframe-only HTML and anonymous preview API denied',async()=>{
+ const game=await fetch(BASE+'/beta-game',{signal:AbortSignal.timeout(15000)});
+ assert.equal(game.status,200);
+ assert.match(game.headers.get('content-type'),/text\\/html/i);
+ assert.equal(game.headers.get('x-frame-options'),'SAMEORIGIN');
+ assert.match(game.headers.get('content-security-policy'),/frame-ancestors 'self'/);
+ assert.match(game.headers.get('content-security-policy'),/connect-src 'none'/);
+ const html=await game.text();
+ for(const part of ['id="world"','id="joystick"','id="collect"','id="camera-zoom-slider"',
+  'previewRequest("move",{dx,dy})','previewRequest("collect",previewPendingClaim)',
+  'frame=[dx,dy,0]','src="/beta-game"'])
+  if(part==='src="/beta-game"')assert.ok(!html.includes(part));
+  else assert.ok(html.includes(part),part);
+ for(const path of ['world','join','move','collect']){
+  const post=path!=='world';
+  const res=await fetch(BASE+'/api/v16/preview/'+path+'?scope=free',{
+   method:post?'POST':'GET',
+   headers:{...(post?{'content-type':'application/json'}:{})},
+   ...(post?{body:'{}'}:{}),signal:AbortSignal.timeout(15000)
+  });
+  assert.equal(res.status,401);
+  assert.match((await res.text()),/Google sign-in required/);
+ }
+ const blocked=await fetch(BASE+'/api/v16/join?scope=free',{
+  method:'POST',headers:{'content-type':'application/json'},body:'{}',
+  signal:AbortSignal.timeout(15000)
+ });
+ assert.equal(blocked.status,403);
+});
 test('untrusted cross-origin requests are rejected',async()=>{
  const denied=await fetch(BASE+'/api/v16/health',{
   headers:{origin:'https://untrusted.example'},
@@ -125,7 +154,9 @@ test('beta login mobile page is actually served from deployed Worker',async()=>{
  'id="coinPilotPanel"','id="pilotJoin"','id="pilotCollect"','id="pilotReplay"','id="pilotWorld"',
  '/api/v16/pilot/','pilotPendingClaim=null;pilotClaimSeq++',
  'pilotRequest("collect",pilotLastAck.claim)','หลังครบ 60 วินาที','รีเฟรชหน้า',
- 'details.includes("Player not joined")','เซิร์ฟเวอร์ห้องทดลองเริ่มทำงานใหม่'])assert.ok(html.includes(part),part);
+ 'details.includes("Player not joined")','เซิร์ฟเวอร์ห้องทดลองเริ่มทำงานใหม่',
+ 'id="gamePreviewPanel"','id="previewOpen"','id="previewOverlay"','id="previewFrame"',
+ 'th2d-preview-request','/api/v16/preview/','frame.src="/beta-game"'])assert.ok(html.includes(part),part);
  assert.equal(html.includes('Web API Key ชี้ไป Firebase โปรเจกต์อื่น ไม่ใช่ treasure-hunt-2d'),false);
  assert.ok(html.length>5000);
  assert.ok(!html.includes('V16_BETA_UIDS'));
