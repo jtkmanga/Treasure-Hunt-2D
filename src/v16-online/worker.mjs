@@ -21,13 +21,14 @@ export async function handleV16Request(req,env,testing={}){
  const url=new URL(req.url),scope=scopeFrom(url);
  if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',writesEnabled:env.ENABLE_V16_WRITES==='true'},200,headers);
  if(!scope)return json({error:'Invalid server'},400,headers);
- if(!['/api/v16/world','/api/v16/join','/api/v16/move','/api/v16/collect'].includes(url.pathname))return json({error:'Not found'},404,headers);
+ if(!['/api/v16/auth-check','/api/v16/world','/api/v16/join','/api/v16/move','/api/v16/collect'].includes(url.pathname))return json({error:'Not found'},404,headers);
+ const authCheck=url.pathname==='/api/v16/auth-check';
  const read=url.pathname==='/api/v16/world';
- if(req.method!==(read?'GET':'POST'))return json({error:'Method not allowed'},405,headers);
+ if(req.method!==((read||authCheck)?'GET':'POST'))return json({error:'Method not allowed'},405,headers);
  // World polling is opt-in on staging: public traffic to a DO costs CPU/storage.
- if(read&&env.ENABLE_V16_READS!=='true')return json({error:'World reads not enabled'},403,headers);
- if(!read&&env.ENABLE_V16_WRITES!=='true')return json({error:'Online writes not enabled'},403,headers);
- if(!env.ROOMS?.idFromName||!env.ROOMS?.get)return json({error:'World storage not configured'},503,headers);
+ if(!authCheck&&read&&env.ENABLE_V16_READS!=='true')return json({error:'World reads not enabled'},403,headers);
+ if(!authCheck&&!read&&env.ENABLE_V16_WRITES!=='true')return json({error:'Online writes not enabled'},403,headers);
+ if(!authCheck&&(!env.ROOMS?.idFromName||!env.ROOMS?.get))return json({error:'World storage not configured'},503,headers);
  let uid=null,input={};
  // Closed-beta world snapshots carry live scores and cause Durable Object reads.
  // Treat reads as authenticated, rate-limited requests, not a public shortcut.
@@ -45,7 +46,7 @@ export async function handleV16Request(req,env,testing={}){
    // Missing/invalid allowlists deny everyone (including admin users).
    if(!authorizeClosedBeta(identity,env).allowed)
     return json({error:'Closed Beta invitation required'},403,headers);
-   const limit=await env.V16_RATE_LIMITER.limit({key:(read?'world:':'write:')+uid});
+   const limit=await env.V16_RATE_LIMITER.limit({key:(authCheck?'auth:':read?'world:':'write:')+uid});
    if(!limit?.success)return json({error:'Too many requests'},429,headers);
    let person;
    try{
@@ -63,9 +64,11 @@ export async function handleV16Request(req,env,testing={}){
    if(person?.uid!==uid||person.disabled!==false||person.revoked!==false)
     return json({error:'Account not permitted'},403,headers);
    if(scope==='vip1')return json({error:'VIP verification pending'},403,headers);
-   if(!read)input=await bodyJSON(req);
+   if(!read&&!authCheck)input=await bodyJSON(req);
   }catch{return json({error:'Authentication, App Check or account validation failed'},401,headers);}
  }
+ // Auth probe never accesses a Durable Object, exposes a UID/email or grants points.
+ if(authCheck)return json({ok:true,googleVerified:true,appCheckVerified:true,accountActive:true,betaInvited:true,scope:'free',writesEnabled:false},200,headers);
  const name=env.ROOMS.idFromName(scope),stub=env.ROOMS.get(name);
  const action=url.pathname.split('/').pop();
  const since=url.searchParams.get('since');
