@@ -20,11 +20,11 @@ test('Auth, App Check, user status and rate limiter must all exist',async()=>{
 test('Authenticated worker forwards verified UID only, not user supplied uid',async()=>{
  const storage=new Map();const obj=new V16WorldRoom({storage:{async get(k){return storage.get(k)},async put(k,v){storage.set(k,v)}},blockConcurrencyWhile:p=>p},{});
  // Cloudflare's constructor blockConcurrencyWhile is awaited before fetch in production.
- const env={...settings('true'),FIREBASE_PROJECT_ID:'project-test',FIREBASE_PROJECT_NUMBER:'1234567890',FIREBASE_APP_ID:'1:1234567890:web:demo',
+ const env={...settings('true'),V16_BETA_UIDS:'good-uid',FIREBASE_PROJECT_ID:'project-test',FIREBASE_PROJECT_NUMBER:'1234567890',FIREBASE_APP_ID:'1:1234567890:web:demo',
   ACCOUNT_STATUS:{async fetch(){return new Response(JSON.stringify({uid:'good-uid',disabled:false,revoked:false}),{headers:{'content-type':'application/json'}})}},
   V16_RATE_LIMITER:{async limit(){return {success:true}}},
   ROOMS:{idFromName:s=>s,get:()=>obj}};
- const opts={verifyId:async()=>({uid:'good-uid'}),verifyApp:async()=>({appId:'ok'})};
+ const opts={verifyId:async()=>({uid:'good-uid',provider:'google.com',emailVerified:true}),verifyApp:async()=>({appId:'ok'})};
  const post=(action,body)=>handleV16Request(request(action,{method:'POST',headers:{authorization:'Bearer '+('A'.repeat(110)),'x-firebase-appcheck':'demo','content-type':'application/json'},body:JSON.stringify(body)}),env,opts);
  const joined=await post('join?scope=free',{uid:'bad-uid',name:'Player'});
  assert.equal(joined.status,200);
