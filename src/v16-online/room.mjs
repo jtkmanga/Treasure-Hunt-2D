@@ -127,6 +127,14 @@ export class V16Room {
   .sort(([a,x],[b,y])=>y-x||(this.names.get(a)||a).localeCompare(this.names.get(b)||b))
   .slice(0,count).map(([uid,score],i)=>({rank:i+1,name:this.names.get(uid)||'Hunter',score}));}
  publicView(now){validNow(now);this.rollover(now);this.chestRespawn(now);
+  // Expired coin cooldowns must advance the shared snapshot version, or
+  // conditional polls would claim the world is unchanged after a respawn.
+  let reappeared=false;
+  for(let i=0;i<this.coinReadyAt.length;i++){
+   const readyAt=this.coinReadyAt[i];
+   if(readyAt>0&&readyAt<=now){this.coinReadyAt[i]=0;reappeared=true;}
+  }
+  if(reappeared)this.version++;
   return {version:this.version,scope:this.scope,mapVersion:WORLD_VERSION,seed:this.seed,period:this.period,
    coins:this.map.coins.map((c,i)=>({id:i,x:c.x,y:c.y,readyAt:this.coinReadyAt[i]})),
    chest:{...this.chest},leaders:this.leaders()};
