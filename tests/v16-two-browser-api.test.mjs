@@ -23,6 +23,7 @@ function stagingLab() {
   const env = {
     ENABLE_V16_READS: 'true',
     ENABLE_V16_WRITES: 'true',
+    V16_BETA_UIDS: 'alice,bob',
     ALLOWED_ORIGIN: 'https://preview.test',
     FIREBASE_PROJECT_ID: 'treasure-hunt-2d',
     FIREBASE_PROJECT_NUMBER: '123456789',
@@ -37,7 +38,7 @@ function stagingLab() {
     V16_RATE_LIMITER: { async limit() { return { success: true }; } },
   };
   const testing = {
-    verifyId: async token => ({ uid: token.startsWith('A') ? 'alice' : 'bob' }),
+    verifyId: async token => ({ uid: token.startsWith('A') ? 'alice' : 'bob',provider:'google.com',emailVerified:true }),
     verifyApp: async token => {
       if (token !== 'valid-appcheck') throw Error('Invalid App Check');
       return { appId: env.FIREBASE_APP_ID };
