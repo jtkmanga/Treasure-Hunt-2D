@@ -1,0 +1,21 @@
+# This probes existing separate V16 staging, never writes gameplay or deploys.
+name: V16 live staging closed-gates smoke test
+on:
+  pull_request:
+    paths:
+      - 'tests/v16-staging-live-smoke.test.mjs'
+      - '.github/workflows/v16-staging-live-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-staging-closed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check deployed V16 staging health and reject unauthenticated actions
+        run: node --test tests/v16-staging-live-smoke.test.mjs
