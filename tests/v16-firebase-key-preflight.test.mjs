@@ -7,7 +7,7 @@ import {handleV16Request} from '../src/v16-online/worker.mjs';
 function helper(customFetch,hostname='treasure-hunt-2d-v16-world-staging.hjinffv5426.workers.dev'){
  const js=BETA_LOGIN_PAGE.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
  const text=js.slice(js.indexOf('async function checkFirebaseProject(apiKey){'),
-  js.indexOf('async function setupFirebase(apiKey,siteKey){'));
+  js.indexOf('async function checkGoogleProvider(apiKey){'));
  assert.ok(text.startsWith('async function checkFirebaseProject'));
  const ctx={fetch:customFetch,location:{hostname},encodeURIComponent,Error};
  vm.createContext(ctx);vm.runInContext(text+'; globalThis.check=checkFirebaseProject;',ctx);
