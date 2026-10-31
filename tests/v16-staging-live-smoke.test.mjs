@@ -56,6 +56,8 @@ test('beta login mobile page is actually served from deployed Worker',async()=>{
  assert.equal(page.headers.get('x-frame-options'),'DENY');
  assert.equal(page.headers.get('referrer-policy'),'strict-origin-when-cross-origin');
  assert.equal(page.headers.get('cross-origin-opener-policy'),null);
+ assert.match(page.headers.get('content-security-policy'),/script-src[^;]*https:\/\/accounts\.google\.com/);
+ assert.match(page.headers.get('content-security-policy'),/style-src[^;]*https:\/\/accounts\.google\.com/);
  const html=await page.text();
  for(const part of ['Treasure Hunt 2D','Firebase Web API Key','reCAPTCHA Enterprise Site Key',
  'เข้าสู่ระบบด้วย Google','/api/v16/auth-check','www.gstatic.com/firebasejs/',
@@ -66,7 +68,11 @@ test('beta login mobile page is actually served from deployed Worker',async()=>{
  'เซิร์ฟเวอร์จะปฏิเสธโทเค็น','projectId==="439998873632"',
  'Project Number 439998873632','id="providerState"',
  'identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=',
- 'REDIRECT_PENDING_KEY','if(redirectPending)'])assert.ok(html.includes(part),part);
+ 'REDIRECT_PENDING_KEY','if(redirectPending)',
+ 'id="gisButton"','id="googleClientId"','https://accounts.google.com/gsi/client',
+ 'globalThis.google.accounts.id.renderButton',
+ 'signInWithCredential(auth,GoogleAuthProvider.credential(response.credential))',
+ 'Authorized JavaScript origin'])assert.ok(html.includes(part),part);
  assert.equal(html.includes('Web API Key ชี้ไป Firebase โปรเจกต์อื่น ไม่ใช่ treasure-hunt-2d'),false);
  assert.ok(html.length>5000);
  assert.ok(!html.includes('V16_BETA_UIDS'));
