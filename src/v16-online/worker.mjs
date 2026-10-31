@@ -68,6 +68,7 @@ export class V16WorldRoom {
    if(!['free1','vip1'].includes(scope))return json({error:'Invalid internal scope'},403);
    if(!this.room)this.room=new V16Room(scope);
    if(this.room.scope!==scope)return json({error:'Scope mismatch'},403);
+   if(this.storageBlocked)return json({error:'World storage recovery required'},503);
    // One alarm per room at the next Bangkok season boundary.
    if(this.state.storage.getAlarm&&this.state.storage.setAlarm&&await this.state.storage.getAlarm()===null)
     await this.state.storage.setAlarm(Date.parse(periodFor(scope,Date.now()).resetsAt));
@@ -83,6 +84,10 @@ export class V16WorldRoom {
     }
     if(req.method!=='POST'||!uid)return json({error:'Unauthorized internal operation'},403);
     const body=await req.json();let result;
+    // An acknowledged pickup must be durable. If a DO write fails, restore
+    // the last persisted state before accepting another claim; otherwise a
+    // transient storage error could leave scores/coins changed only in RAM.
+    const playerBefore=new Map([...this.room.players].map(([id,p])=>[id,{...p}]));
     if(action==='join')result=this.room.join(uid,now,body.name);
     else if(action==='move')result=this.room.move(uid,[body.dx,body.dy],now);
     else if(action==='collect'){
@@ -93,7 +98,22 @@ export class V16WorldRoom {
     else return json({error:'No such action'},404);
     // Persist score, cooldowns and dedupe IDs before confirming collection.
     // Player positions are ephemeral: clients must join after a DO restart.
-    if(action==='join'||action==='collect')await this.state.storage.put('v16-state',this.room.save());
+    if(action==='join'||action==='collect'){
+     try {
+      await this.state.storage.put('v16-state',this.room.save());
+     } catch {
+      try {
+       const stored=await this.state.storage.get('v16-state');
+       this.room=stored?V16Room.restore(stored):new V16Room(scope);
+       // Coordinates are intentionally short-lived, never saved as authority.
+       this.room.players=playerBefore;
+      } catch {
+       // Never accept writes when durable state cannot be reconciled.
+       this.storageBlocked=true;
+      }
+      return json({error:'Persistent world storage unavailable'},503);
+     }
+    }
     return json({ok:true,result});
    }catch(e){return json({error:String(e.message||e).slice(0,110)},400)}
   };
