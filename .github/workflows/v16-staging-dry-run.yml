@@ -26,6 +26,7 @@ jobs:
         run: |
           grep -q '"ENABLE_V16_WRITES": "false"' wrangler.v16-online-staging.jsonc
           grep -q '"ENABLE_V16_READS": "true"' wrangler.v16-online-staging.jsonc
+          grep -q '"ENABLE_V16_PILOT_WRITES": "true"' wrangler.v16-online-staging.jsonc
       - name: Build Cloudflare Worker without publishing it
         run: npx --yes wrangler@4 deploy --config wrangler.v16-online-staging.jsonc --dry-run --outdir .wrangler/v16-closed-beta
       - name: Verify build emitted a Worker bundle
