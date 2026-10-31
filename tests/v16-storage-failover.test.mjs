@@ -51,3 +51,39 @@ test('if storage cannot be read after failed write, all later operations fail cl
  assert.equal(next.status,503);
  assert.equal(l.persisted.get('v16-state').scores.find(([uid])=>uid==='alice')[1],0);
 });
+
+test('public world rollover does not expose a reset that failed to persist',async()=>{
+ const l=lab();await l.ready();
+ await l.room.fetch(request('join','alice',{name:'Alice'}));
+ l.room.room.period='2026-10-18';
+ l.room.room.scores.set('alice',59);
+ l.persisted.set('v16-state',l.room.room.save());
+ l.failPut();
+ const unavailable=await l.room.fetch(request('world'));
+ assert.equal(unavailable.status,503);
+ assert.equal(l.room.room.scores.get('alice'),59);
+ assert.equal(l.room.room.winners.length,0);
+ const retried=await l.room.fetch(request('world'));
+ assert.equal(retried.status,200);
+ assert.equal(l.room.room.scores.size,0);
+ assert.equal(l.room.room.winners.at(-1).top.score,59);
+ assert.equal(l.persisted.get('v16-state').winners.at(-1).top.score,59);
+});
+
+test('failed midnight alarm persists winner exactly once on the next retry',async()=>{
+ const l=lab();await l.ready();
+ await l.room.fetch(request('join','alice',{name:'Alice'}));
+ l.room.room.period='2026-10-18';
+ l.room.room.scores.set('alice',77);
+ l.persisted.set('v16-state',l.room.room.save());
+ l.failPut();
+ await assert.rejects(()=>l.room.alarm(),/Persistent world storage unavailable/);
+ assert.equal(l.room.room.scores.get('alice'),77);
+ assert.equal(l.room.room.winners.length,0);
+ await l.room.alarm();
+ assert.equal(l.room.room.winners.length,1);
+ assert.equal(l.room.room.winners[0].top.score,77);
+ assert.equal(l.persisted.get('v16-state').winners[0].top.score,77);
+ await l.room.alarm();
+ assert.equal(l.room.room.winners.length,1);
+});
