@@ -9,6 +9,8 @@ import {BETA_LOGIN_PAGE} from './beta-login-page.mjs';
 import {V16Room} from './room.mjs';
 import {periodFor} from './periods.mjs';
 const SCOPES={free:'free1',vip:'vip1',free1:'free1',vip1:'vip1'};
+// Dedicated isolated DO; pilot claims NEVER affect Free Server ranking or coins.
+const PILOT_ROOM='free1-coin-race-pilot-v1';
 const json=(obj,status=200,headers={})=>new Response(JSON.stringify(obj),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff',...headers}});
 function cors(request,env){const origin=request.headers.get('origin');
  if(origin&&origin!==env.ALLOWED_ORIGIN)return null;
@@ -30,15 +32,21 @@ export async function handleV16Request(req,env,testing={}){
    ...headers,
   }});
  }
- if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true'},200,headers);
+ if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true'},200,headers);
  if(!scope)return json({error:'Invalid server'},400,headers);
- if(!['/api/v16/auth-check','/api/v16/world','/api/v16/join','/api/v16/move','/api/v16/collect'].includes(url.pathname))return json({error:'Not found'},404,headers);
+ const pilotMatch=/^\/api\/v16\/pilot\/(world|join|collect)$/.exec(url.pathname);
+ const pilot=!!pilotMatch;
+ if(!pilot&&!['/api/v16/auth-check','/api/v16/world','/api/v16/join','/api/v16/move','/api/v16/collect'].includes(url.pathname))return json({error:'Not found'},404,headers);
  const authCheck=url.pathname==='/api/v16/auth-check';
- const read=url.pathname==='/api/v16/world';
+ const read=url.pathname==='/api/v16/world'||(pilot&&pilotMatch[1]==='world');
  if(req.method!==((read||authCheck)?'GET':'POST'))return json({error:'Method not allowed'},405,headers);
+ // Pilot runs in an entirely separate DO with its own, non-public scores.
+ // Never loosen the production Free-world write gate for a beta experiment.
+ if(pilot&&(scope!=='free1'||env.ENABLE_V16_PILOT_WRITES!=='true'))
+  return json({error:'Isolated coin pilot not enabled'},403,headers);
  // World polling is opt-in on staging: public traffic to a DO costs CPU/storage.
- if(!authCheck&&read&&env.ENABLE_V16_READS!=='true')return json({error:'World reads not enabled'},403,headers);
- if(!authCheck&&!read&&env.ENABLE_V16_WRITES!=='true')return json({error:'Online writes not enabled'},403,headers);
+ if(!pilot&&!authCheck&&read&&env.ENABLE_V16_READS!=='true')return json({error:'World reads not enabled'},403,headers);
+ if(!pilot&&!authCheck&&!read&&env.ENABLE_V16_WRITES!=='true')return json({error:'Online writes not enabled'},403,headers);
  if(!authCheck&&(!env.ROOMS?.idFromName||!env.ROOMS?.get))return json({error:'World storage not configured'},503,headers);
  let uid=null,input={};
  // Closed-beta world snapshots carry live scores and cause Durable Object reads.
@@ -57,7 +65,7 @@ export async function handleV16Request(req,env,testing={}){
    // Missing/invalid allowlists deny everyone (including admin users).
    if(!authorizeClosedBeta(identity,env).allowed)
     return json({error:'Closed Beta invitation required'},403,headers);
-   const limit=await env.V16_RATE_LIMITER.limit({key:(authCheck?'auth:':read?'world:':'write:')+uid});
+   const limit=await env.V16_RATE_LIMITER.limit({key:(authCheck?'auth:':pilot?'pilot:':read?'world:':'write:')+uid});
    if(!limit?.success)return json({error:'Too many requests'},429,headers);
    let person;
    try{
@@ -80,8 +88,8 @@ export async function handleV16Request(req,env,testing={}){
  }
  // Auth probe never accesses a Durable Object, exposes a UID/email or grants points.
  if(authCheck)return json({ok:true,googleVerified:true,appCheckVerified:true,accountActive:true,betaInvited:true,scope:'free',writesEnabled:false},200,headers);
- const name=env.ROOMS.idFromName(scope),stub=env.ROOMS.get(name);
- const action=url.pathname.split('/').pop();
+ const name=env.ROOMS.idFromName(pilot?PILOT_ROOM:scope),stub=env.ROOMS.get(name);
+ const action=(pilot?'pilot-':'')+url.pathname.split('/').pop();
  const since=url.searchParams.get('since');
  if(read&&since!==null&&(!/^(0|[1-9][0-9]{0,14})$/.test(since)||!Number.isSafeInteger(Number(since))))
   return json({error:'Invalid version'},400,headers);
@@ -118,7 +126,7 @@ export class V16WorldRoom {
     await this.state.storage.setAlarm(Date.parse(periodFor(scope,Date.now()).resetsAt));
    const uid=req.headers.get('x-internal-uid');const now=Date.now();const action=new URL(req.url).pathname.slice(1);
    try{
-    if(action==='world'){
+    if(action==='world'||action==='pilot-world'){
      const previous=this.room.version,world=this.room.publicView(now);
      if(previous!==this.room.version){
       try {await this.state.storage.put('v16-state',this.room.save())}
@@ -139,8 +147,16 @@ export class V16WorldRoom {
     // transient storage error could leave scores/coins changed only in RAM.
     const playerBefore=new Map([...this.room.players].map(([id,p])=>[id,{...p}]));
     if(action==='join')result=this.room.join(uid,now,body.name);
+    else if(action==='pilot-join'){
+     // Pilot-only server-chosen start next to coin #0. This is NOT exposed
+     // on any actual Free/VIP world or ordinary join/move/collect route.
+     this.room.join(uid,now,body.name);
+     const c=this.room.map.coins[0],p=this.room.requirePlayer(uid);
+     p.x=c.x;p.y=c.y;p.lastAt=now;
+     result=this.room.privateView(uid,now);
+    }
     else if(action==='move')result=this.room.move(uid,[body.dx,body.dy],now);
-    else if(action==='collect'){
+    else if(action==='collect'||action==='pilot-collect'){
      if(!Number.isSafeInteger(body.claimSeq)||body.claimSeq<1)
       return json({error:'claimSeq required (start with nextClaimSeq from join)'},400);
      result=this.room.collect(uid,body.requestId,now,body.claimSeq);
@@ -148,7 +164,7 @@ export class V16WorldRoom {
     else return json({error:'No such action'},404);
     // Persist score, cooldowns and dedupe IDs before confirming collection.
     // Player positions are ephemeral: clients must join after a DO restart.
-    if(action==='join'||action==='collect'){
+    if(action==='join'||action==='collect'||action==='pilot-join'||action==='pilot-collect'){
      try {
       await this.state.storage.put('v16-state',this.room.save());
      } catch {
