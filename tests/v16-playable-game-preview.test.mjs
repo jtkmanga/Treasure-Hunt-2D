@@ -175,6 +175,7 @@ test('only same-origin frame can request actions; Firebase tokens never sent int
    '"/api/v16/preview/"','auth.currentUser.getIdToken()','getToken(appCheck)',
    'const {uid,...safe}=value.result','previewVerified=true'])
   assert.ok(BETA_LOGIN_PAGE.includes(key),key);
+ assert.ok(GAME_PREVIEW_PAGE.includes('Sync V16.24'), 'manual Android testers must be able to spot the deployed movement build');
  assert.ok(GAME_PREVIEW_PAGE.includes('th2d-preview-result'));
  assert.ok(GAME_PREVIEW_PAGE.includes('window.parent.postMessage'));
  assert.ok(!GAME_PREVIEW_PAGE.includes('firebasejs/'));
