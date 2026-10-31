@@ -25,6 +25,21 @@ test('anonymous world reads are denied and score writes stay closed',async()=>{
  assert.equal(score.status,403);
  assert.match((await score.text()),/Online writes not enabled/);
 });
+test('anonymous coin race is denied while real Free writes stay disabled',async()=>{
+ const [read,join,collect]=await Promise.all([
+  fetch(BASE+'/api/v16/pilot/world?scope=free',{signal:AbortSignal.timeout(15000)}),
+  fetch(BASE+'/api/v16/pilot/join?scope=free',{method:'POST',headers:{'content-type':'application/json'},body:'{}',signal:AbortSignal.timeout(15000)}),
+  fetch(BASE+'/api/v16/pilot/collect?scope=free',{method:'POST',headers:{'content-type':'application/json'},body:'{}',signal:AbortSignal.timeout(15000)})
+ ]);
+ for(const res of [read,join,collect]){
+  assert.equal(res.status,401);
+  assert.match((await res.text()),/Google sign-in required/);
+ }
+ const vip=await fetch(BASE+'/api/v16/pilot/world?scope=vip',{signal:AbortSignal.timeout(15000)});
+ assert.equal(vip.status,403);
+ const invalid=await fetch(BASE+'/api/v16/pilot/move?scope=free',{method:'POST',body:'{}',signal:AbortSignal.timeout(15000)});
+ assert.equal(invalid.status,404);
+});
 test('untrusted cross-origin requests are rejected',async()=>{
  const denied=await fetch(BASE+'/api/v16/health',{
   headers:{origin:'https://untrusted.example'},
@@ -79,7 +94,9 @@ test('beta login mobile page is actually served from deployed Worker',async()=>{
  'api/v16/world?scope=free','describeWorld(world)','เหรียญพร้อมเก็บ:',
  'id="worldFingerprint"','function comparableWorld(world)',
  'crypto.subtle.digest("SHA-256",bytes)','await showWorldFingerprint(world)',
- 'await showWorldFingerprint(lastWorldSnapshot)'])assert.ok(html.includes(part),part);
+ 'await showWorldFingerprint(lastWorldSnapshot)',
+ 'id="coinPilotPanel"','id="pilotJoin"','id="pilotCollect"','id="pilotWorld"',
+ '/api/v16/pilot/','pilotPendingClaim=null;pilotClaimSeq++'])assert.ok(html.includes(part),part);
  assert.equal(html.includes('Web API Key ชี้ไป Firebase โปรเจกต์อื่น ไม่ใช่ treasure-hunt-2d'),false);
  assert.ok(html.length>5000);
  assert.ok(!html.includes('V16_BETA_UIDS'));
