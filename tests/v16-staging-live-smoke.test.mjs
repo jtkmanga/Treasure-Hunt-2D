@@ -48,3 +48,29 @@ test('staging health never reveals Firebase configuration or beta invitations',a
  for(const term of ['FIREBASE_WEB_API_KEY','V16_BETA_UIDS','SECRET','firebase-appcheck','google.com'])
   assert.equal(body.includes(term),false);
 });
+
+test('beta login mobile page is actually served from deployed Worker',async()=>{
+ const page=await fetch(BASE+'/beta-login',{signal:AbortSignal.timeout(15000)});
+ assert.equal(page.status,200);
+ assert.match(page.headers.get('content-type'),/text\/html/i);
+ assert.equal(page.headers.get('x-frame-options'),'DENY');
+ const html=await page.text();
+ for(const part of ['Treasure Hunt 2D','Firebase Web API Key','reCAPTCHA Enterprise Site Key',
+ 'เข้าสู่ระบบด้วย Google','/api/v16/auth-check','www.gstatic.com/firebasejs/'])assert.ok(html.includes(part),part);
+ assert.ok(html.length>5000);
+ assert.ok(!html.includes('V16_BETA_UIDS'));
+ assert.ok(!html.includes('FIREBASE_WEB_API_KEY'));
+});
+test('real auth check route requires Google login despite gameplay flags being off',async()=>{
+ const unauth=await fetch(BASE+'/api/v16/auth-check?scope=free',{signal:AbortSignal.timeout(15000)});
+ assert.equal(unauth.status,401);
+ const body=await unauth.json();
+ assert.match(body.error,/Google sign-in required/);
+ const wrongOrigin=await fetch(BASE+'/api/v16/auth-check?scope=free',{
+  headers:{origin:'https://untrusted.example'},signal:AbortSignal.timeout(15000)});
+ assert.equal(wrongOrigin.status,403);
+ const method=await fetch(BASE+'/api/v16/auth-check',{
+  method:'POST',headers:{'content-type':'application/json'},
+  body:'{}',signal:AbortSignal.timeout(15000)});
+ assert.equal(method.status,405);
+});
