@@ -91,6 +91,11 @@ test('Durable Object restart and browser rejoin preserve score, cooldown and req
   const again=await request(c.object,'pilot-world');
   assert.equal(again.body.world.leaders[0].score,2);
   assert.ok(again.body.world.coins[0].readyAt>clock);
+  const notJoined=await request(c.object,'pilot-collect','alice',{requestId:COIN0,claimSeq:1});
+  assert.equal(notJoined.status,400,'after DO restart movement/position is not persisted');
+  assert.match(notJoined.body.error,/Player not joined/);
+  const reconnected=await request(c.object,'pilot-join','alice',{name:'Alice'});
+  assert.equal(reconnected.body.result.nextClaimSeq,3,'server restores next claim sequence after rejoin');
   const old=await request(c.object,'pilot-collect','alice',{requestId:COIN0,claimSeq:1});
   assert.equal(old.status,400,'older sequence refused after second award');
   assert.match(old.body.error,/Stale claim sequence/);
