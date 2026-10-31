@@ -40,6 +40,32 @@ test('anonymous coin race is denied while real Free writes stay disabled',async(
  const invalid=await fetch(BASE+'/api/v16/pilot/move?scope=free',{method:'POST',body:'{}',signal:AbortSignal.timeout(15000)});
  assert.equal(invalid.status,404);
 });
+test('mobile Staging origin reaches authentication instead of Origin denied',async()=>{
+ const origin=BASE;
+ const post=await fetch(BASE+'/api/v16/pilot/join?scope=free',{
+  method:'POST',
+  headers:{origin,'content-type':'application/json'},
+  body:JSON.stringify({name:'UnauthenticatedProbe'}),
+  signal:AbortSignal.timeout(15000)
+ });
+ assert.equal(post.status,401);
+ assert.match((await post.text()),/Google sign-in required/);
+ assert.equal(post.headers.get('access-control-allow-origin'),origin);
+ const preflight=await fetch(BASE+'/api/v16/pilot/join?scope=free',{
+  method:'OPTIONS',
+  headers:{origin,'access-control-request-method':'POST',
+   'access-control-request-headers':'authorization,x-firebase-appcheck,content-type'},
+  signal:AbortSignal.timeout(15000)
+ });
+ assert.equal(preflight.status,204);
+ assert.equal(preflight.headers.get('access-control-allow-origin'),origin);
+ const attack=await fetch(BASE+'/api/v16/pilot/join?scope=free',{
+  method:'POST',headers:{origin:origin+'.attacker.example','content-type':'application/json'},
+  body:'{}',signal:AbortSignal.timeout(15000)
+ });
+ assert.equal(attack.status,403);
+ assert.match((await attack.text()),/Origin denied/);
+});
 test('untrusted cross-origin requests are rejected',async()=>{
  const denied=await fetch(BASE+'/api/v16/health',{
   headers:{origin:'https://untrusted.example'},
