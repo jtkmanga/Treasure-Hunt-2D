@@ -56,7 +56,9 @@ test('beta login mobile page is actually served from deployed Worker',async()=>{
  assert.equal(page.headers.get('x-frame-options'),'DENY');
  const html=await page.text();
  for(const part of ['Treasure Hunt 2D','Firebase Web API Key','reCAPTCHA Enterprise Site Key',
- 'เข้าสู่ระบบด้วย Google','/api/v16/auth-check','www.gstatic.com/firebasejs/'])assert.ok(html.includes(part),part);
+ 'เข้าสู่ระบบด้วย Google','/api/v16/auth-check','www.gstatic.com/firebasejs/',
+ 'id="googleHint"','id="redirect"','getRedirectResult','signInWithRedirect',
+ 'Google Login ไม่สำเร็จ','auth/popup-blocked'])assert.ok(html.includes(part),part);
  assert.ok(html.length>5000);
  assert.ok(!html.includes('V16_BETA_UIDS'));
  assert.ok(!html.includes('FIREBASE_WEB_API_KEY'));
