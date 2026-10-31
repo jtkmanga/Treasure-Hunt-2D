@@ -62,6 +62,16 @@ export class V16WorldRoom {
    this.room=saved?V16Room.restore(saved):null;
   });
  }
+ async reconcileStorage(scope,players=this.room?.players){
+  try {
+   const stored=await this.state.storage.get('v16-state');
+   this.room=stored?V16Room.restore(stored):new V16Room(scope);
+   if(players)this.room.players=new Map([...players].map(([id,p])=>[id,{...p}]));
+  } catch {
+   // Fail closed until the DO is restarted and its durable state is reloaded.
+   this.storageBlocked=true;
+  }
+ }
  async fetch(req){
   const task=async()=>{
    const scope=req.headers.get('x-internal-scope');
@@ -76,7 +86,13 @@ export class V16WorldRoom {
    try{
     if(action==='world'){
      const previous=this.room.version,world=this.room.publicView(now);
-     if(previous!==this.room.version)await this.state.storage.put('v16-state',this.room.save());
+     if(previous!==this.room.version){
+      try {await this.state.storage.put('v16-state',this.room.save())}
+      catch {
+       await this.reconcileStorage(scope);
+       return json({error:'Persistent world storage unavailable'},503);
+      }
+     }
      const since=req.headers.get('x-world-since');
      if(since!==null&&Number(since)===world.version)
       return json({ok:true,unchanged:true,version:world.version,scope});
@@ -102,15 +118,7 @@ export class V16WorldRoom {
      try {
       await this.state.storage.put('v16-state',this.room.save());
      } catch {
-      try {
-       const stored=await this.state.storage.get('v16-state');
-       this.room=stored?V16Room.restore(stored):new V16Room(scope);
-       // Coordinates are intentionally short-lived, never saved as authority.
-       this.room.players=playerBefore;
-      } catch {
-       // Never accept writes when durable state cannot be reconciled.
-       this.storageBlocked=true;
-      }
+      await this.reconcileStorage(scope,playerBefore);
       return json({error:'Persistent world storage unavailable'},503);
      }
     }
@@ -121,13 +129,20 @@ export class V16WorldRoom {
  }
  async alarm(){
   const task=async()=>{
-   if(!this.room)return;
-   const now=Date.now(),previous=this.room.version;
+   if(!this.room||this.storageBlocked)return;
+   const now=Date.now(),scope=this.room.scope,previous=this.room.version;
    this.room.rollover(now);
-   // Durable Object alarm may be retried; rollover is idempotent by period.
-   if(previous!==this.room.version)await this.state.storage.put('v16-state',this.room.save());
+   // Alarm retries are at-least-once. Reconcile first if persistence fails,
+   // so the next retry cannot silently lose the winner snapshot.
+   if(previous!==this.room.version){
+    try{await this.state.storage.put('v16-state',this.room.save())}
+    catch{
+     await this.reconcileStorage(scope);
+     throw Error('Persistent world storage unavailable during reset');
+    }
+   }
    if(this.state.storage.setAlarm)
-    await this.state.storage.setAlarm(Date.parse(periodFor(this.room.scope,now).resetsAt));
+    await this.state.storage.setAlarm(Date.parse(periodFor(scope,now).resetsAt));
   };
   const next=this.queue.then(task,task);this.queue=next.then(()=>{},()=>{});return next;
  }
