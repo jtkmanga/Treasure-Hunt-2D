@@ -11,6 +11,7 @@ test('isolated V16 staging Worker is alive with all gameplay gates disabled',asy
  assert.equal(data.phase,'staging-preview');
  assert.equal(data.map,'v16-forest-100');
  assert.equal(data.writesEnabled,false);
+ assert.equal(data.readsEnabled,true);
 });
 test('unauthenticated world reads and score writes stay closed',async()=>{
  const world=await fetch(BASE+'/api/v16/world?scope=free',{signal:AbortSignal.timeout(15000)});
