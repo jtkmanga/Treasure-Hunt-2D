@@ -171,6 +171,7 @@ export class V16WorldRoom {
       if(req.headers.get('x-internal-preview')==='1'){
        const p=this.room.requirePlayer(uid);
        p.previewSeq=0;p.previewAck=null;p.previewCreditMs=100;p.previewBudgetAt=now;p.lastAt=now;
+       p.previewNonce=crypto.randomUUID();result.previewNonce=p.previewNonce;
       }
      }
     else if(action==='pilot-join'){
@@ -182,7 +183,7 @@ export class V16WorldRoom {
      result=this.room.privateView(uid,now);
     }
     else if(action==='move')result=req.headers.get('x-internal-preview')==='1'
-      ?this.room.movePreview(uid,body.frames,body.seq,now)
+      ?this.room.movePreview(uid,body.frames,body.seq,now,body.nonce)
       :this.room.move(uid,[body.dx,body.dy],now);
     else if(action==='collect'||action==='pilot-collect'){
      if(!Number.isSafeInteger(body.claimSeq)||body.claimSeq<1)
