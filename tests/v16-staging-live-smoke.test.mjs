@@ -123,7 +123,8 @@ test('beta login mobile page is actually served from deployed Worker',async()=>{
  'await showWorldFingerprint(lastWorldSnapshot)',
  'id="coinPilotPanel"','id="pilotJoin"','id="pilotCollect"','id="pilotReplay"','id="pilotWorld"',
  '/api/v16/pilot/','pilotPendingClaim=null;pilotClaimSeq++',
- 'pilotRequest("collect",pilotLastAck.claim)','หลังครบ 60 วินาที','รีเฟรชหน้า'])assert.ok(html.includes(part),part);
+ 'pilotRequest("collect",pilotLastAck.claim)','หลังครบ 60 วินาที','รีเฟรชหน้า',
+ 'details.includes("Player not joined")','เซิร์ฟเวอร์ห้องทดลองเริ่มทำงานใหม่'])assert.ok(html.includes(part),part);
  assert.equal(html.includes('Web API Key ชี้ไป Firebase โปรเจกต์อื่น ไม่ใช่ treasure-hunt-2d'),false);
  assert.ok(html.length>5000);
  assert.ok(!html.includes('V16_BETA_UIDS'));
