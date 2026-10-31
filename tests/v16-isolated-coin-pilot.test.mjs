@@ -165,6 +165,8 @@ test('mobile pilot UI requires beta verification and retries idempotently on net
  assert.match(BETA_LOGIN_PAGE,/JSON.stringify\(replay.result\)!==JSON.stringify\(pilotLastAck.result\)/);
  assert.match(BETA_LOGIN_PAGE,/หลังครบ 60 วินาที/);
  assert.match(BETA_LOGIN_PAGE,/รีเฟรชหน้า/);
+ assert.match(BETA_LOGIN_PAGE,/details.includes\("Player not joined"\)/);
+ assert.match(BETA_LOGIN_PAGE,/เซิร์ฟเวอร์ห้องทดลองเริ่มทำงานใหม่/);
 
  const script=BETA_LOGIN_PAGE.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1];
  assert.ok(script);
