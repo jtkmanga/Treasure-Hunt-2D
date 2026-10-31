@@ -3,6 +3,7 @@
 // AND Firebase Auth + App Check + account status + rate limit are verified.
 import {verifyFirebaseIdToken} from '../online/firebase-auth.mjs';
 import {verifyAppCheck} from './appcheck.mjs';
+import {authorizeClosedBeta} from './beta-access.mjs';
 import {V16Room} from './room.mjs';
 import {periodFor} from './periods.mjs';
 const SCOPES={free:'free1',vip:'vip1',free1:'free1',vip1:'vip1'};
@@ -39,6 +40,10 @@ export async function handleV16Request(req,env,testing={}){
    uid=identity.uid;
    if(typeof uid!=='string'||uid.length<1||uid.length>128)throw Error('Invalid verified UID');
    await (testing.verifyApp||verifyAppCheck)(req.headers.get('x-firebase-appcheck'),env.FIREBASE_PROJECT_NUMBER,env.FIREBASE_APP_ID);
+   // One invitation per stable Firebase UID, enforced on every authenticated route.
+   // Missing/invalid allowlists deny everyone (including admin users).
+   if(!authorizeClosedBeta(identity,env).allowed)
+    return json({error:'Closed Beta invitation required'},403,headers);
    const status=await env.ACCOUNT_STATUS.fetch('https://internal/account-status',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({uid})});
    if(!status.ok)throw Error('Account status unavailable');
    const person=await status.json();
