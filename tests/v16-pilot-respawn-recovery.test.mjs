@@ -75,11 +75,18 @@ test('Durable Object restart and browser rejoin preserve score, cooldown and req
   const before=await request(b.object,'pilot-world');
   assert.equal(before.body.world.coins[0].readyAt,T+COIN_RESPAWN_MS);
   assert.equal(before.body.world.leaders[0].score,1);
+  // A browser retry should recover its original receipt even when this DO's
+  // ephemeral players map is empty following hibernation or reconstruction.
+  const replay=await request(b.object,'pilot-collect','alice',{requestId:COIN0,claimSeq:1});
+  assert.equal(replay.status,200);
+  assert.equal(replay.body.result.requestId,COIN0);
+  assert.equal(b.object.room.players.size,0,'replaying a receipt must not create player position');
+  assert.equal(b.object.room.scores.get('alice'),1);
+  const freshWithoutJoin=await request(b.object,'pilot-collect','alice',{requestId:'pilot-unjoined0001',claimSeq:2});
+  assert.equal(freshWithoutJoin.status,400);
+  assert.match(freshWithoutJoin.body.error,/Player not joined/);
   const rejoin=await request(b.object,'pilot-join','alice',{name:'Alice'});
   assert.equal(rejoin.body.result.nextClaimSeq,2,'reloading browser uses persisted server sequence');
-  const replay=await request(b.object,'pilot-collect','alice',{requestId:COIN0,claimSeq:1});
-  assert.equal(replay.body.result.requestId,COIN0);
-  assert.equal(b.object.room.scores.get('alice'),1);
   clock=T+COIN_RESPAWN_MS;
   const fresh=await request(b.object,'pilot-world');
   assert.equal(fresh.body.world.coins[0].readyAt,0,'expired cooldown cleared');
@@ -91,9 +98,13 @@ test('Durable Object restart and browser rejoin preserve score, cooldown and req
   const again=await request(c.object,'pilot-world');
   assert.equal(again.body.world.leaders[0].score,2);
   assert.ok(again.body.world.coins[0].readyAt>clock);
-  const notJoined=await request(c.object,'pilot-collect','alice',{requestId:COIN0,claimSeq:1});
-  assert.equal(notJoined.status,400,'after DO restart movement/position is not persisted');
-  assert.match(notJoined.body.error,/Player not joined/);
+  const replayLatest=await request(c.object,'pilot-collect','alice',{requestId:'pilot-secondclaim1',claimSeq:2});
+  assert.equal(replayLatest.status,200,'last accepted receipt remains readable without joining');
+  assert.equal(replayLatest.body.result?.score,2);
+  assert.equal(c.object.room.players.size,0);
+  const cannotCollect=await request(c.object,'pilot-collect','alice',{requestId:'pilot-freshclaim3',claimSeq:3});
+  assert.equal(cannotCollect.status,400,'fresh pickup still requires active player');
+  assert.match(cannotCollect.body.error,/Player not joined/);
   const reconnected=await request(c.object,'pilot-join','alice',{name:'Alice'});
   assert.equal(reconnected.body.result.nextClaimSeq,3,'server restores next claim sequence after rejoin');
   const old=await request(c.object,'pilot-collect','alice',{requestId:COIN0,claimSeq:1});
