@@ -29,9 +29,13 @@ test('Authenticated worker forwards verified UID only, not user supplied uid',as
  const joined=await post('join?scope=free',{uid:'bad-uid',name:'Player'});
  assert.equal(joined.status,200);
  const body=await joined.json();assert.equal(body.result.uid,'good-uid');
- const view=await handleV16Request(request('world?scope=free'),env);
+ const view=await handleV16Request(request('world?scope=free',{headers:{authorization:'Bearer '+('A'.repeat(110)),'x-firebase-appcheck':'demo'}}),env,opts);
  assert.equal(view.status,200);assert.equal((await view.json()).world.coins.length,200);
  const vip=await post('join?scope=vip',{});assert.equal(vip.status,403);
+ const noAuth=await handleV16Request(request('world?scope=free'),env,opts);
+ assert.equal(noAuth.status,401);
+ const vipWorld=await handleV16Request(request('world?scope=vip',{headers:{authorization:'Bearer '+('A'.repeat(110)),'x-firebase-appcheck':'demo'}}),env,opts);
+ assert.equal(vipWorld.status,403);
 });
 test('App Check rejects missing, invalid token and false signature',async()=>{
  await assert.rejects(()=>verifyAppCheck('',1234567890,'app'));
