@@ -50,6 +50,31 @@ function harness(){
  };
  return {env,tester,call,req,objects,stores,roomNames,rate,ready:()=>Promise.all(initializers)};
 }
+test('real staging browser Origin is allowed for an authenticated pilot POST, spoofed origins remain denied',async()=>{
+ const h=harness();
+ const staging='https://treasure-hunt-2d-v16-world-staging.hjinffv5426.workers.dev';
+ const input=h.req('A','pilot/join',{name:'MobileA'});
+ const headers=new Headers(input.headers);
+ headers.set('origin',staging);
+ const allowed=await handleV16Request(new Request(input,{headers}),h.env,h.tester);
+ assert.equal(allowed.status,200);
+ assert.equal((await allowed.json()).result.uid,'alice');
+ assert.equal(allowed.headers.get('access-control-allow-origin'),staging);
+ const preflight=await handleV16Request(new Request(BASE+'/api/v16/pilot/join?scope=free',{
+  method:'OPTIONS',headers:{origin:staging,
+   'access-control-request-method':'POST',
+   'access-control-request-headers':'authorization,x-firebase-appcheck,content-type'}
+ }),h.env,h.tester);
+ assert.equal(preflight.status,204);
+ assert.equal(preflight.headers.get('access-control-allow-origin'),staging);
+ const badHeaders=new Headers(input.headers);
+ badHeaders.set('origin',staging+'.attacker.example');
+ const rejected=await handleV16Request(new Request(input,{headers:badHeaders}),h.env,h.tester);
+ assert.equal(rejected.status,403);
+ assert.match((await rejected.json()).error,/Origin denied/);
+ const missing=new Headers(input.headers);missing.set('origin','null');
+ assert.equal((await handleV16Request(new Request(input,{headers:missing}),h.env,h.tester)).status,403);
+});
 test('pilot coin race: two verified users join shared isolated DO; only one can collect coin #0',async()=>{
  const h=harness();
  const [a,b]=await Promise.all([
