@@ -70,6 +70,35 @@ export class V16Room {
   }
   player.lastAt=now;return {x:player.x,y:player.y};
  }
+ // Staging-only V16 preview: replay exactly the local 50ms input frames.
+ // Every batch is bounded by real elapsed server time plus a fixed 100ms
+ // initial credit. Jitter cannot erase movement, and clients cannot mint
+ // additional movement by replaying or fabricating elapsed timestamps.
+ movePreview(uid,frames,seq,now){validNow(now);const p=this.requirePlayer(uid);
+  ensure(Number.isSafeInteger(seq)&&seq>0,'Invalid preview move sequence');
+  if(seq===p.previewSeq)return {...p.previewAck}; // Network retry: no double movement.
+  ensure(seq===(p.previewSeq||0)+1,'Out-of-order preview movement');
+  ensure(Array.isArray(frames)&&frames.length>0&&frames.length<=40,'Invalid preview movement batch');
+  ensure(frames.every(f=>Array.isArray(f)&&f.length===2&&f.every(v=>Number.isInteger(v)&&v>=-100&&v<=100)),'Invalid preview frame');
+  const from=p.previewBudgetAt??p.lastAt;
+  ensure(now>=from,'Nonmonotonic preview movement');
+  const credit=Math.min(5000,(p.previewCreditMs??100)+(now-from));
+  const cost=frames.length*50;
+  ensure(cost<=credit,'Preview movement exceeds elapsed server time');
+  // Same two axis-separated 25ms collision steps as the 50ms mobile engine.
+  for(const f of frames){
+   let [ax,ay]=f;const norm=Math.hypot(ax,ay);
+   if(norm>100){ax=ax*100/norm;ay=ay*100/norm;}
+   const step=3.9*.05/100/2;
+   for(let i=0;i<2;i++){
+    if(walkable(this.map.tiles,p.x+ax*step,p.y))p.x+=ax*step;
+    if(walkable(this.map.tiles,p.x,p.y+ay*step))p.y+=ay*step;
+   }
+  }
+  p.previewCreditMs=credit-cost;p.previewBudgetAt=now;p.lastAt=now;
+  p.previewSeq=seq;p.previewAck={x:p.x,y:p.y};
+  return {...p.previewAck};
+ }
  chestRespawn(now){if(this.chest.readyAt===0||this.chest.readyAt>now)return false;
   const sites=this.map.chestSites;
   const start=Math.floor(this.draw()*sites.length/1000);
