@@ -14,6 +14,7 @@ test('isolated V16 staging Worker is alive with reads only and no score writes',
  assert.equal(data.readsEnabled,true);
  assert.equal(data.pilotEnabled,true);
  assert.equal(data.gamePreviewEnabled,true);
+ assert.equal(data.movementProtocol,'Sync V16.24','live staging must serve movement fix');
  assert.equal(health.headers.get('cache-control'),'no-store');
 });
 test('anonymous world reads are denied and score writes stay closed',async()=>{
@@ -76,12 +77,13 @@ test('Staging playable forest is iframe-only HTML and anonymous preview API deni
  assert.match(game.headers.get('content-security-policy'),/connect-src 'none'/);
  const html=await game.text();
  for(const part of ['id="world"','id="joystick"','id="collect"','id="camera-zoom-slider"',
-  'previewRequest("move",{dx,dy})','previewRequest("collect",previewPendingClaim)',
+  'previewRequest("move",{seq,nonce:previewMoveNonce,frames:sent.map(f=>[f.dx,f.dy])})','previewRequest("collect",previewPendingClaim)',
   'frame=[dx,dy,0]','src="/beta-game"'])
   if(part==='src="/beta-game"')assert.ok(!html.includes(part));
   else assert.ok(html.includes(part),part);
  assert.ok(html.includes('window.addEventListener("blur",()=>{clearControls();})'), 'inactive Android window must not pause');
  assert.ok(html.includes('previewPlanCorrection(r.result,clientAtSend)'), 'staging uses delayed reply compensation');
+ assert.ok(html.includes('Sync V16.24'),'real beta page must identify current build');
  assert.ok(html.includes('previewApplyCorrection()'), 'staging applies bounded motion correction');
  assert.ok(!html.includes('if(dist>.65){session.player.x=position.x'), 'staging must not teleport on delayed acknowledgment');
  for(const path of ['world','join','move','collect']){
