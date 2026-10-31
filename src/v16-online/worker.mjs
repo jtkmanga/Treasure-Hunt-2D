@@ -25,7 +25,7 @@ export async function handleV16Request(req,env,testing={}){
   return new Response(BETA_LOGIN_PAGE,{status:200,headers:{
    'content-type':'text/html; charset=utf-8','cache-control':'no-store',
    'x-content-type-options':'nosniff','x-frame-options':'DENY',
-   'referrer-policy':'no-referrer','cross-origin-opener-policy':'same-origin-allow-popups',
+   'referrer-policy':'strict-origin-when-cross-origin',
    'content-security-policy':"default-src 'self' https: data:; script-src 'self' https://www.gstatic.com https://www.google.com https://www.recaptcha.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; frame-src https:; connect-src 'self' https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
    ...headers,
   }});
