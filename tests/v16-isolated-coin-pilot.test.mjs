@@ -69,11 +69,11 @@ test('real staging browser Origin is allowed for an authenticated pilot POST, sp
  assert.equal(preflight.headers.get('access-control-allow-origin'),staging);
  const badHeaders=new Headers(input.headers);
  badHeaders.set('origin',staging+'.attacker.example');
- const rejected=await handleV16Request(new Request(input,{headers:badHeaders}),h.env,h.tester);
+ const rejected=await handleV16Request(new Request(h.req('A','pilot/join',{name:'MobileA'}),{headers:badHeaders}),h.env,h.tester);
  assert.equal(rejected.status,403);
  assert.match((await rejected.json()).error,/Origin denied/);
  const missing=new Headers(input.headers);missing.set('origin','null');
- assert.equal((await handleV16Request(new Request(input,{headers:missing}),h.env,h.tester)).status,403);
+ assert.equal((await handleV16Request(new Request(h.req('A','pilot/join',{name:'MobileA'}),{headers:missing}),h.env,h.tester)).status,403);
 });
 test('pilot coin race: two verified users join shared isolated DO; only one can collect coin #0',async()=>{
  const h=harness();
