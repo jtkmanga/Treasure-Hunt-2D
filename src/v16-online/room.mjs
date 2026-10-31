@@ -81,7 +81,11 @@ export class V16Room {
   }
   return false;
  }
- collect(uid,requestId,now,claimSeq=null){validNow(now);this.requirePlayer(uid);
+ collect(uid,requestId,now,claimSeq=null){validNow(now);validUid(uid);
+  // Verify the previously persisted request before checking transient presence.
+  // A DO can hibernate/restart between pickup and retry; authenticated replays
+  // must return the original receipt without requiring a new player position.
+  ensure(typeof requestId==='string'&&/^[A-Za-z0-9_-]{12,80}$/.test(requestId),'Invalid claim request ID');
   // Monotonic server-persisted client sequence prevents old claim retries
   // from granting coins after the 60-second respawn, even after DO restart.
   if(claimSeq!==null){
@@ -91,11 +95,13 @@ export class V16Room {
    if(claimSeq===last){const prior=this.claimIds.get(uid)?.get(requestId);return prior??null;}
    ensure(claimSeq===last+1,'Out-of-order claim sequence');
   }
-  ensure(typeof requestId==='string'&&/^[A-Za-z0-9_-]{12,80}$/.test(requestId),'Invalid claim request ID');
-  this.rollover(now);this.chestRespawn(now);
   const memory=this.claimIds.get(uid)||new Map();
-  if(memory.has(requestId))return memory.get(requestId); // Same claim cannot be credited twice.
-  const p=this.requirePlayer(uid);let candidate=null,distance=Infinity;
+  if(memory.has(requestId))return memory.get(requestId); // Only return an existing receipt.
+  // A NEW pickup still requires an active joined player and a valid server
+  // position. No rejoin means no new points, even if a coin has respawned.
+  const p=this.requirePlayer(uid);
+  this.rollover(now);this.chestRespawn(now);
+  let candidate=null,distance=Infinity;
   for(let i=0;i<200;i++){
    if(this.coinReadyAt[i]>now)continue;
    const c=this.map.coins[i],d=Math.hypot(p.x-c.x,p.y-c.y);
