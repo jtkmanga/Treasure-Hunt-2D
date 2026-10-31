@@ -31,6 +31,20 @@ test('Firebase project preflight checks key and allowed staging hostname without
  assert.equal(calls[0].options.referrerPolicy,'strict-origin-when-cross-origin');
  assert.equal(calls[0].options.cache,'no-store');
 });
+test('Identity Toolkit numeric project number equals the same Firebase project',async()=>{
+ const check=helper(async()=>ok({projectId:'439998873632',authorizedDomains:[
+  'treasure-hunt-2d-v16-world-staging.hjinffv5426.workers.dev'
+ ]}));
+ const result=await check(k);
+ assert.equal(result.confirmed,true);
+ assert.match(result.note,/Project Number 439998873632/);
+ const numeric=helper(async()=>ok({projectId:439998873632,authorizedDomains:[
+  'treasure-hunt-2d-v16-world-staging.hjinffv5426.workers.dev'
+ ]}));
+ assert.equal((await numeric(k)).confirmed,true);
+ const missingDomain=helper(async()=>ok({projectId:'439998873632',authorizedDomains:['localhost']}));
+ assert.equal((await missingDomain(k)).confirmed,false);
+});
 test('wrong, absent project IDs and missing domain are warnings, not false-positive hard blocks',async()=>{
  const mismatched=helper(async()=>ok({projectId:'another-project'}));
  const notMatching=await mismatched(k);
