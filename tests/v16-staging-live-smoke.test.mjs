@@ -28,3 +28,23 @@ test('untrusted cross-origin requests are rejected',async()=>{
   signal:AbortSignal.timeout(15000)});
  assert.equal(denied.status,403);
 });
+
+test('new beta deployment keeps join and VIP world disabled without credentials',async()=>{
+ const join=await fetch(BASE+'/api/v16/join?scope=free',{
+  method:'POST',headers:{'content-type':'application/json'},
+  body:JSON.stringify({name:'No login'}),
+  signal:AbortSignal.timeout(15000),
+ });
+ assert.equal(join.status,403);
+ const vip=await fetch(BASE+'/api/v16/world?scope=vip',{
+  signal:AbortSignal.timeout(15000),
+ });
+ assert.equal(vip.status,403);
+});
+test('staging health never reveals Firebase configuration or beta invitations',async()=>{
+ const res=await fetch(BASE+'/api/v16/health',{signal:AbortSignal.timeout(15000)});
+ assert.equal(res.status,200);
+ const body=await res.text();
+ for(const term of ['FIREBASE_WEB_API_KEY','V16_BETA_UIDS','SECRET','firebase-appcheck','google.com'])
+  assert.equal(body.includes(term),false);
+});
