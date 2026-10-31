@@ -1,9 +1,9 @@
 // Live HTTP health check. Safe: never authenticates, moves players, grants
-// scores, or creates/changes game state. Uses only disabled staging endpoints.
+// scores, or changes game state. Reads can be enabled but all writes stay OFF.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 const BASE='https://treasure-hunt-2d-v16-world-staging.hjinffv5426.workers.dev';
-test('isolated V16 staging Worker is alive with all gameplay gates disabled',async()=>{
+test('isolated V16 staging Worker is alive with reads only and no score writes',async()=>{
  const health=await fetch(BASE+'/api/v16/health',{signal:AbortSignal.timeout(15000)});
  assert.equal(health.status,200);
  const data=await health.json();
@@ -13,10 +13,10 @@ test('isolated V16 staging Worker is alive with all gameplay gates disabled',asy
  assert.equal(data.writesEnabled,false);
  assert.equal(data.readsEnabled,true);
 });
-test('unauthenticated world reads and score writes stay closed',async()=>{
+test('anonymous world reads are denied and score writes stay closed',async()=>{
  const world=await fetch(BASE+'/api/v16/world?scope=free',{signal:AbortSignal.timeout(15000)});
- assert.equal(world.status,403);
- assert.match((await world.text()),/World reads not enabled/);
+ assert.equal(world.status,401);
+ assert.match((await world.text()),/Google sign-in required/);
  const score=await fetch(BASE+'/api/v16/collect?scope=free',{
   method:'POST',headers:{'content-type':'application/json'},
   body:'{}',signal:AbortSignal.timeout(15000)});
@@ -40,7 +40,7 @@ test('new beta deployment keeps join and VIP world disabled without credentials'
  const vip=await fetch(BASE+'/api/v16/world?scope=vip',{
   signal:AbortSignal.timeout(15000),
  });
- assert.equal(vip.status,403);
+ assert.equal(vip.status,401);
 });
 test('staging health never reveals Firebase configuration or beta invitations',async()=>{
  const res=await fetch(BASE+'/api/v16/health',{signal:AbortSignal.timeout(15000)});
@@ -73,7 +73,8 @@ test('beta login mobile page is actually served from deployed Worker',async()=>{
  'id="gisButton"','id="googleClientId"','https://accounts.google.com/gsi/client',
  'globalThis.google.accounts.id.renderButton',
  'signInWithCredential(auth,GoogleAuthProvider.credential(response.credential))',
- 'Authorized JavaScript origin'])assert.ok(html.includes(part),part);
+ 'Authorized JavaScript origin','id="worldPanel"','id="worldRead"',
+ 'api/v16/world?scope=free','describeWorld(world)','เหรียญพร้อมเก็บ:'])assert.ok(html.includes(part),part);
  assert.equal(html.includes('Web API Key ชี้ไป Firebase โปรเจกต์อื่น ไม่ใช่ treasure-hunt-2d'),false);
  assert.ok(html.length>5000);
  assert.ok(!html.includes('V16_BETA_UIDS'));
