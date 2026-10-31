@@ -152,7 +152,7 @@ test('pilot API denies uninvited, missing App Check, VIP and disabled pilot flag
  assert.equal((await h.call('A','pilot/move',{dx:100,dy:0})).status,404);
 });
 test('mobile pilot UI requires beta verification and retries idempotently on network error',()=>{
- for(const id of ['coinPilotPanel','pilotJoin','pilotCollect','pilotWorld','pilotState','pilotName'])
+ for(const id of ['coinPilotPanel','pilotJoin','pilotCollect','pilotReplay','pilotWorld','pilotState','pilotName'])
   assert.ok(BETA_LOGIN_PAGE.includes('id="'+id+'"'),id);
  assert.match(BETA_LOGIN_PAGE,/if\(!betaVerified\|\|!ready\|\|!auth\?\.currentUser\|\|!appCheck\)/);
  assert.match(BETA_LOGIN_PAGE,/\/api\/v16\/pilot\//);
@@ -160,6 +160,12 @@ test('mobile pilot UI requires beta verification and retries idempotently on net
  assert.match(BETA_LOGIN_PAGE,/if\(!pilotPendingClaim\)pilotPendingClaim=/);
  assert.ok(BETA_LOGIN_PAGE.includes('requestId:"pilot-"+crypto.randomUUID()'));
  assert.match(BETA_LOGIN_PAGE,/ห้องทดลอง/);
+ assert.match(BETA_LOGIN_PAGE,/pilotLastAck=\{claim:exactClaim,result:data.result\}/);
+ assert.match(BETA_LOGIN_PAGE,/pilotRequest\("collect",pilotLastAck.claim\)/);
+ assert.match(BETA_LOGIN_PAGE,/JSON.stringify\(replay.result\)!==JSON.stringify\(pilotLastAck.result\)/);
+ assert.match(BETA_LOGIN_PAGE,/หลังครบ 60 วินาที/);
+ assert.match(BETA_LOGIN_PAGE,/รีเฟรชหน้า/);
+
  const script=BETA_LOGIN_PAGE.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1];
  assert.ok(script);
  assert.doesNotThrow(()=>new vm.Script(script.replace(/^import\s+.+?;\s*$/gm,'')));
