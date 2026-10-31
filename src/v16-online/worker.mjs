@@ -49,7 +49,24 @@ export async function handleV16Request(req,env,testing={}){
    ...headers,
   }});
  }
- if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
+ if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',movementProtocol:'Sync V16.26',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
+ // Staging-only read-only probe checks the *actual Durable Object code*.
+ // The public Worker health marker alone cannot detect deferred DO upgrades.
+ // A shared rate limit prevents this diagnostic from becoming an unbounded DO.
+ if(url.pathname==='/api/v16/preview/protocol'){
+  if(req.method!=='GET')return json({error:'Method not allowed'},405,headers);
+  if(scope!=='free1'||env.ENABLE_V16_GAME_PREVIEW!=='true')return json({error:'Not available'},403,headers);
+  if(!env.ROOMS?.idFromName||!env.ROOMS?.get||!env.V16_RATE_LIMITER?.limit)
+   return json({error:'Preview protocol probe unavailable'},503,headers);
+  try{
+   const limited=await env.V16_RATE_LIMITER.limit({key:'preview-protocol:public'});
+   if(!limited?.success)return json({error:'Too many probes'},429,headers);
+   const id=env.ROOMS.idFromName(PREVIEW_ROOM),stub=env.ROOMS.get(id);
+   const result=await stub.fetch(new Request('https://internal/protocol',{
+    headers:{'x-internal-scope':'free1'}}));
+   return json(await result.json(),result.status,headers);
+  }catch{return json({error:'Preview protocol probe unavailable'},503,headers)}
+ }
  if(!scope)return json({error:'Invalid server'},400,headers);
  const pilotMatch=/^\/api\/v16\/pilot\/(world|join|collect)$/.exec(url.pathname);
  const previewMatch=/^\/api\/v16\/preview\/(world|join|move|collect)$/.exec(url.pathname);
@@ -109,11 +126,15 @@ export async function handleV16Request(req,env,testing={}){
  // Auth probe never accesses a Durable Object, exposes a UID/email or grants points.
  if(authCheck)return json({ok:true,googleVerified:true,appCheckVerified:true,accountActive:true,betaInvited:true,scope:'free',writesEnabled:false},200,headers);
  const name=env.ROOMS.idFromName(preview?PREVIEW_ROOM:pilot?PILOT_ROOM:scope),stub=env.ROOMS.get(name);
- const action=(pilot?'pilot-':'')+url.pathname.split('/').pop();
+ const route=url.pathname.split('/').pop();
+  // Use explicit preview actions: never fall through to the legacy Free/VIP move.
+  // A Durable Object still running outdated code rejects these actions instead
+  // of silently dispatching new move packets to the old axes-only handler.
+  const action=(preview&&['join','move'].includes(route)?'preview-':pilot?'pilot-':'')+route;
  const since=url.searchParams.get('since');
  if(read&&since!==null&&(!/^(0|[1-9][0-9]{0,14})$/.test(since)||!Number.isSafeInteger(Number(since))))
   return json({error:'Invalid version'},400,headers);
- const forwarded=new Request('https://internal/'+action,{method:read?'GET':'POST',headers:{'content-type':'application/json','x-internal-uid':uid||'','x-internal-scope':scope,...(read&&since!==null?{'x-world-since':since}:{})},body:read?undefined:JSON.stringify(input)});
+ const forwarded=new Request('https://internal/'+action,{method:read?'GET':'POST',headers:{'content-type':'application/json','x-internal-uid':uid||'','x-internal-scope':scope,'x-internal-preview':preview?'1':'0',...(read&&since!==null?{'x-world-since':since}:{})},body:read?undefined:JSON.stringify(input)});
  try{const response=await stub.fetch(forwarded);return json(await response.json(),response.status,headers)}catch{return json({error:'World temporarily unavailable'},503,headers)}
 }
 export default {fetch(req,env){return handleV16Request(req,env)}};
@@ -141,6 +162,8 @@ export class V16WorldRoom {
    if(!this.room)this.room=new V16Room(scope);
    if(this.room.scope!==scope)return json({error:'Scope mismatch'},403);
    if(this.storageBlocked)return json({error:'World storage recovery required'},503);
+    if(req.method==='GET'&&new URL(req.url).pathname==='/protocol')
+     return json({ok:true,movementProtocol:'Sync V16.26',durableObjectCode:'v16-preview-batched-input-v2'});
    // One alarm per room at the next Bangkok season boundary.
    if(this.state.storage.getAlarm&&this.state.storage.setAlarm&&await this.state.storage.getAlarm()===null)
     await this.state.storage.setAlarm(Date.parse(periodFor(scope,Date.now()).resetsAt));
@@ -166,7 +189,14 @@ export class V16WorldRoom {
     // the last persisted state before accepting another claim; otherwise a
     // transient storage error could leave scores/coins changed only in RAM.
     const playerBefore=new Map([...this.room.players].map(([id,p])=>[id,{...p}]));
-    if(action==='join')result=this.room.join(uid,now,body.name);
+    if(action==='join'||action==='preview-join'){
+      result=this.room.join(uid,now,body.name);
+      if(action==='preview-join'){
+       const p=this.room.requirePlayer(uid);
+       p.previewSeq=0;p.previewAck=null;p.previewCreditMs=100;p.previewBudgetAt=now;p.lastAt=now;
+       p.previewNonce=crypto.randomUUID();result.previewNonce=p.previewNonce;
+      }
+     }
     else if(action==='pilot-join'){
      // Pilot-only server-chosen start next to coin #0. This is NOT exposed
      // on any actual Free/VIP world or ordinary join/move/collect route.
@@ -175,7 +205,8 @@ export class V16WorldRoom {
      p.x=c.x;p.y=c.y;p.lastAt=now;
      result=this.room.privateView(uid,now);
     }
-    else if(action==='move')result=this.room.move(uid,[body.dx,body.dy],now);
+    else if(action==='preview-move')result=this.room.movePreview(uid,body.frames,body.seq,now,body.nonce);
+     else if(action==='move')result=this.room.move(uid,[body.dx,body.dy],now);
     else if(action==='collect'||action==='pilot-collect'){
      if(!Number.isSafeInteger(body.claimSeq)||body.claimSeq<1)
       return json({error:'claimSeq required (start with nextClaimSeq from join)'},400);
@@ -184,7 +215,7 @@ export class V16WorldRoom {
     else return json({error:'No such action'},404);
     // Persist score, cooldowns and dedupe IDs before confirming collection.
     // Player positions are ephemeral: clients must join after a DO restart.
-    if(action==='join'||action==='collect'||action==='pilot-join'||action==='pilot-collect'){
+    if(action==='join'||action==='preview-join'||action==='collect'||action==='pilot-join'||action==='pilot-collect'){
      try {
       await this.state.storage.put('v16-state',this.room.save());
      } catch {
