@@ -196,7 +196,9 @@ test('only same-origin frame can request actions; Firebase tokens never sent int
  assert.ok(!GAME_PREVIEW_PAGE.includes('x-firebase-appcheck'));
 });
 test('iframe auth bridge accepts actual 50ms movement batches and blocks legacy/forged payloads',()=>{
- const source=BETA_LOGIN_PAGE.match(/<script type="module">([\\s\\S]*?)<\\/script>/)?.[1];
+ const open=BETA_LOGIN_PAGE.indexOf('<script type="module">');
+ const close=BETA_LOGIN_PAGE.indexOf('</script>',open);
+ const source=open>=0&&close>open?BETA_LOGIN_PAGE.slice(open+'<script type="module">'.length,close):null;
  assert.ok(source,'beta login module must be present');
  const start=source.indexOf('function validPreviewMovementBatch(');
  const end=source.indexOf('window.addEventListener("message",async event=>{',start);
