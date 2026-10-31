@@ -169,3 +169,58 @@ test('preview HTML is same-origin framed only and full world read remains gated'
  const noFrame=await handleV16Request(new Request(BASE+'/beta-game',{method:'POST'}),t.env);
  assert.equal(noFrame.status,405);
 });
+
+
+test('Android two-browser focus switch releases joystick but does not open the other game menu',()=>{
+ const html=GAME_PREVIEW_PAGE;
+ assert.match(html,/window\.addEventListener\("blur",\(\)=>\{clearControls\(\);\}\)/);
+ assert.match(html,/document\.addEventListener\("visibilitychange",\(\)=>\{if\(document\.hidden\)clearControls\(\);\}\)/);
+ assert.match(html,/window\.addEventListener\("pagehide",\(\)=>\{clearControls\(\);\}\)/);
+ assert.doesNotMatch(html,/window\.addEventListener\("blur",\(\)=>\{if\(running&&!paused\)pauseRun\(\);\}\)/);
+ assert.doesNotMatch(html,/document\.addEventListener\("visibilitychange",\(\)=>\{if\(document\.hidden&&running&&!paused\)pauseRun\(\);\}\)/);
+ assert.match(html,/el\("pause"\)\.addEventListener\("click",\(\)=>\{if\(running&&!paused\)pauseRun\(\)/,
+  'the actual pause button still opens the menu');
+});
+
+test('an asynchronous server move receipt cannot teleport the visual player',()=>{
+ const html=GAME_PREVIEW_PAGE;
+ const start=html.indexOf('function previewPlanCorrection(');
+ const end=html.indexOf('async function previewMove(',start);
+ assert.ok(start>=0&&end>start);
+ const script='let previewCorrectionX=0,previewCorrectionY=0;\n'+html.slice(start,end);
+ const tiles=Array.from({length:30},()=>Array(30).fill(0));
+ const context={session:{player:{x:10,y:10},map:{tiles}},Math};
+ vm.runInNewContext(script,context);
+ // The server acknowledges a snapshot from a PREVIOUS frame, not current hero.
+ context.previewPlanCorrection({x:15,y:10},{x:10,y:10});
+ for(let tick=0;tick<40;tick++){
+  const before={...context.session.player};
+  context.previewApplyCorrection();
+  const distance=Math.hypot(context.session.player.x-before.x,context.session.player.y-before.y);
+  assert.ok(distance<=.040001,'one 50ms tick must never teleport');
+ }
+ assert.ok(context.session.player.x>10.5);
+ assert.ok(context.session.player.x<11.61);
+ // A delayed response behind the client must also be smoothed; never jump back.
+ context.previewPlanCorrection({x:7,y:10},{x:11,y:10});
+ const before={...context.session.player};
+ context.previewApplyCorrection();
+ assert.ok(Math.hypot(context.session.player.x-before.x,context.session.player.y-before.y)<=.040001);
+ assert.match(html,/const clientAtSend=\{x:session\.player\.x,y:session\.player\.y\}/);
+ assert.match(html,/previewPlanCorrection\(r\.result,clientAtSend\)/);
+ assert.doesNotMatch(html,/if\(dist>\.65\)\{session\.player\.x=position\.x/);
+});
+
+test('movement reconciliation respects impassable map collisions',()=>{
+ const html=GAME_PREVIEW_PAGE;
+ const start=html.indexOf('function previewPlanCorrection(');
+ const end=html.indexOf('async function previewMove(',start);
+ const tiles=Array.from({length:30},()=>Array(30).fill(0));
+ tiles[10][11]=1; // Solid tree/trunk blocks correction from x10 to x11.
+ const context={session:{player:{x:10.5,y:10.5},map:{tiles}},Math};
+ vm.runInNewContext('let previewCorrectionX=0,previewCorrectionY=0;\n'+html.slice(start,end),context);
+ context.previewPlanCorrection({x:14,y:10.5},{x:10.5,y:10.5});
+ for(let i=0;i<150;i++)context.previewApplyCorrection();
+ assert.ok(context.session.player.x<10.75,'visual reconciliation cannot pass through a trunk');
+ assert.equal(context.session.player.y,10.5);
+});
