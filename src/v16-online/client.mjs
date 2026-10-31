@@ -24,13 +24,15 @@ export class V16OnlineClient {
   if(!result.ok||!data||data.ok!==true)throw Error(String(data?.error||'Staging API error'));
   return data;
  }
- async signedPost(path,body){
+ async authorizedHeaders(){
   const [idToken,appCheckToken]=await Promise.all([this.idToken(),this.appCheckToken()]);
   if(typeof idToken!=='string'||!idToken||typeof appCheckToken!=='string'||!appCheckToken)
    throw Error('Google login and App Check required');
+  return {authorization:'Bearer '+idToken,'x-firebase-appcheck':appCheckToken};
+ }
+ async signedPost(path,body){
   return this.fetchJSON(this.url(path),{method:'POST',headers:{
-   authorization:'Bearer '+idToken,
-   'x-firebase-appcheck':appCheckToken,
+   ...await this.authorizedHeaders(),
    'content-type':'application/json',
   },body:JSON.stringify(body)});
  }
@@ -63,7 +65,9 @@ export class V16OnlineClient {
   return response.result;
  }
  async world(){
-  const data=await this.fetchJSON(this.url('world',{since:this.worldVersion}));
+  const data=await this.fetchJSON(this.url('world',{since:this.worldVersion}),{
+   headers:await this.authorizedHeaders(),
+  });
   if(data.unchanged)return this.lastWorld;
   if(!data.world||!Number.isSafeInteger(data.world.version))throw Error('Malformed world snapshot');
   this.lastWorld=data.world;this.worldVersion=data.world.version;
