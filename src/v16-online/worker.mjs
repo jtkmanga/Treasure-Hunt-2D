@@ -27,7 +27,9 @@ export async function handleV16Request(req,env,testing={}){
  if(!read&&env.ENABLE_V16_WRITES!=='true')return json({error:'Online writes not enabled'},403,headers);
  if(!env.ROOMS?.idFromName||!env.ROOMS?.get)return json({error:'World storage not configured'},503,headers);
  let uid=null,input={};
- if(!read){
+ // Closed-beta world snapshots carry live scores and cause Durable Object reads.
+ // Treat reads as authenticated, rate-limited requests, not a public shortcut.
+ {
   if(!env.FIREBASE_PROJECT_ID||!env.FIREBASE_PROJECT_NUMBER||!env.FIREBASE_APP_ID)return json({error:'Firebase security not configured'},503,headers);
   if(!env.ACCOUNT_STATUS?.fetch||!env.V16_RATE_LIMITER?.limit)return json({error:'Security gates not configured'},503,headers);
   const match=/^Bearer ([A-Za-z0-9_.-]{100,8192})$/.exec(req.headers.get('authorization')||'');
@@ -41,9 +43,10 @@ export async function handleV16Request(req,env,testing={}){
    if(!status.ok)throw Error('Account status unavailable');
    const person=await status.json();
    if(person.uid!==uid||person.disabled!==false||person.revoked!==false)throw Error('Account cannot participate');
-   const limit=await env.V16_RATE_LIMITER.limit({key:uid});if(!limit.success)return json({error:'Too many requests'},429,headers);
+   const limit=await env.V16_RATE_LIMITER.limit({key:(read?'world:':'write:')+uid});
+   if(!limit?.success)return json({error:'Too many requests'},429,headers);
    if(scope==='vip1')return json({error:'VIP verification pending'},403,headers);
-   input=await bodyJSON(req);
+   if(!read)input=await bodyJSON(req);
   }catch{return json({error:'Authentication, App Check or account validation failed'},401,headers);}
  }
  const name=env.ROOMS.idFromName(scope),stub=env.ROOMS.get(name);
