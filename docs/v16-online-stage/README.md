@@ -16,3 +16,21 @@ This package preserves the approved V16 Calm Motion view (not the retired V8 art
 6. Stress test staging without promising 10k performance; one DO per Free/VIP cannot guarantee 10k requests per second. Design sharding or event aggregation as needed.
 
 *Public leaderboard must never display emails; no cross-server score sharing.*
+
+## Continued implementation (2026-10-31)
+
+- `tests/v16-two-browser-api.test.mjs` simulates two independent browser adapters sending signed-staging requests through `handleV16Request` into the **same** serializable Durable Object. A contested map coin and the single Lucky Box grant **one award only**; both clients receive the same shared coin/chest snapshot. The test validates origin, auth, VIP restrictions and disabled write flags. **Simulation only:** no public DNS, real Firebase tokens, real DO, or phone browser was exercised.
+- `src/v16-online/worker.mjs` now protects failed DO writes: if persisting an accepted coin/chest claim or leaderboard/season change fails, it reconciles the last durable state and returns HTTP 503 rather than confirming phantom points. If durable state cannot be read, the instance fails closed rather than accepting further mutations.
+- `tests/v16-storage-failover.test.mjs` simulates storage write/read outages. A failed claim remains uncredited and may be safely retried using the same request ID and monotonic sequence. Failed midnight reset and public-world rollover recover their persisted winner snapshot before retrying.
+- Existing `V16OnlineClient` keeps pending claim request IDs during uncertain network failures; live V16 game remains **unchanged** and offline until an authenticated staging integration is tested.
+- GitHub Actions: 17/17 workflows passed for commit `f06973dfa964a22fd86c8485a1598dba8fba12ff`. These results cover code-level tests, not live 10K load or payments.
+
+## Cloudflare staging preflight — blocking checks
+
+1. Verify the Cloudflare account's Workers/Durable Objects billing plan and cost controls with authorized Billing Read or the account owner dashboard. The connected Cloudflare OAuth account returns **HTTP 403 for Billing Read**, so a zero-charge deployment **cannot** currently be guaranteed.
+2. Create an **isolated** staging Worker and SQLite-backed Durable Object only after reviewing plan/quotas. Keep `ENABLE_V16_READS=false` and `ENABLE_V16_WRITES=false` until identity and abuse checks pass. Do not reuse or overwrite the existing 3D Worker or the public Pages deployment.
+3. Wire verified Firebase ID token validation, Firebase App Check enforcement, a real disabled/revoked-account status service, scoped per-UID rate limiting, a restricted CORS origin and VIP entitlement validation. Test fail-closed handling when each service is unavailable.
+4. Test two physical browsers end-to-end, then use staged multi-client load tests to measure DO throughput and compute/storage/network costs. A single DO per server and unrestricted per-player polling are **not** proven to scale to 10,000 concurrent players.
+5. Move eventual ranked score ledger into a durable database/event log before opening public competition, and independently verify Slip2Go payment confirmations for 20/10 THB boosts; public payments remain OFF.
+
+Never merge/roll out this staging foundation as a production game without these checks.
