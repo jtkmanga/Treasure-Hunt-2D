@@ -133,7 +133,7 @@ test('mobile pilot UI requires beta verification and retries idempotently on net
  assert.match(BETA_LOGIN_PAGE,/\/api\/v16\/pilot\//);
  assert.match(BETA_LOGIN_PAGE,/pilotPendingClaim=null;pilotClaimSeq\+\+/);
  assert.match(BETA_LOGIN_PAGE,/if\(!pilotPendingClaim\)pilotPendingClaim=/);
- assert.match(BETA_LOGIN_PAGE,/pilot-"\\+crypto.randomUUID/);
+ assert.ok(BETA_LOGIN_PAGE.includes('requestId:"pilot-"+crypto.randomUUID()'));
  assert.match(BETA_LOGIN_PAGE,/ห้องทดลอง/);
  const script=BETA_LOGIN_PAGE.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1];
  assert.ok(script);
