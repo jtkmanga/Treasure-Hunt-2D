@@ -66,13 +66,13 @@ test('public world is opt-in and compact polling rejects malformed versions',asy
  const blocked=await handleV16Request(new Request('https://example.test/api/v16/world?scope=free'),{ENABLE_V16_READS:'false'});
  assert.equal(blocked.status,403);
  const room=objectHarness();await room.ready();
- const env={ENABLE_V16_READS:'true',ROOMS:{idFromName:s=>s,get:()=>room.object},
+ const env={ENABLE_V16_READS:'true',V16_BETA_UIDS:'alice',ROOMS:{idFromName:s=>s,get:()=>room.object},
   FIREBASE_PROJECT_ID:'project-test',FIREBASE_PROJECT_NUMBER:'1234567890',
   FIREBASE_APP_ID:'1:1234567890:web:demo',
   ACCOUNT_STATUS:{async fetch(){return Response.json({uid:'alice',disabled:false,revoked:false})}},
   V16_RATE_LIMITER:{async limit(){return {success:true}}},
  };
- const testing={verifyId:async()=>({uid:'alice'}),verifyApp:async()=>({appId:'demo'})};
+ const testing={verifyId:async()=>({uid:'alice',provider:'google.com',emailVerified:true}),verifyApp:async()=>({appId:'demo'})};
  const requestWorld=path=>new Request('https://example.test/api/v16/'+path,{
   headers:{authorization:'Bearer '+('A'.repeat(110)),'x-firebase-appcheck':'valid-app-check'},
  });
