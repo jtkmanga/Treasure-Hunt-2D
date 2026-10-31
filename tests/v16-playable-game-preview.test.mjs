@@ -157,7 +157,7 @@ test('preview protocol probes actual DO code and never grants anonymous movement
  const t=rig();
  const check=await t.call('A','preview/protocol');
  assert.equal(check.status,200);
- assert.equal(check.result.movementProtocol,'Sync V16.25');
+ assert.equal(check.result.movementProtocol,'Sync V16.26');
  assert.equal(check.result.durableObjectCode,'v16-preview-batched-input-v2');
  const unknown=await t.call('A','preview/protocol',{x:1});
  assert.equal(unknown.status,405);
@@ -187,13 +187,39 @@ test('only same-origin frame can request actions; Firebase tokens never sent int
    '"/api/v16/preview/"','auth.currentUser.getIdToken()','getToken(appCheck)',
    'const {uid,...safe}=value.result','previewVerified=true'])
   assert.ok(BETA_LOGIN_PAGE.includes(key),key);
- assert.ok(GAME_PREVIEW_PAGE.includes('Sync V16.25'), 'manual Android testers must be able to spot the deployed movement build');
+ assert.ok(GAME_PREVIEW_PAGE.includes('Sync V16.26'), 'manual Android testers must be able to spot the deployed movement build');
  assert.ok(GAME_PREVIEW_PAGE.includes('th2d-preview-result'));
  assert.ok(GAME_PREVIEW_PAGE.includes('window.parent.postMessage'));
  assert.ok(!GAME_PREVIEW_PAGE.includes('firebasejs/'));
  assert.ok(!GAME_PREVIEW_PAGE.includes('V16_BETA_UIDS'));
  assert.ok(!GAME_PREVIEW_PAGE.includes('AIza'));
  assert.ok(!GAME_PREVIEW_PAGE.includes('x-firebase-appcheck'));
+});
+test('iframe auth bridge accepts actual 50ms movement batches and blocks legacy/forged payloads',()=>{
+ const source=BETA_LOGIN_PAGE.match(/<script type="module">([\\s\\S]*?)<\\/script>/)?.[1];
+ assert.ok(source,'beta login module must be present');
+ const start=source.indexOf('function validPreviewMovementBatch(');
+ const end=source.indexOf('window.addEventListener("message",async event=>{',start);
+ assert.ok(start>=0&&end>start,'live iframe validator code must be exercised');
+ const context={};
+ vm.runInNewContext(source.slice(start,end),context);
+ const valid=context.validPreviewMovementBatch;
+ assert.equal(typeof valid,'function');
+ const packet={seq:1,nonce:'123e4567-e89b-42d3-a456-426614174000',
+  frames:[[100,0],[50,-60],[0,100]]};
+ assert.equal(valid(packet),true,'exact client move packet must pass parent');
+ assert.equal(valid({...packet,seq:2,frames:Array.from({length:40},()=>[100,0])}),true);
+ assert.equal(valid({dx:100,dy:0}),false,'old axes packet rejected');
+ assert.equal(valid({...packet,seq:0}),false,'bad sequence rejected');
+ assert.equal(valid({...packet,nonce:'forged'}),false,'bad nonce rejected');
+ assert.equal(valid({...packet,frames:[]}),false,'empty frames rejected');
+ assert.equal(valid({...packet,frames:Array.from({length:41},()=>[0,0])}),false,'oversized packet rejected');
+ assert.equal(valid({...packet,frames:[[101,0]]}),false,'speed hack rejected');
+ assert.equal(valid({...packet,frames:[[0.2,0]]}),false,'noninteger axes rejected');
+ assert.equal(valid({...packet,frames:[['100',0]]}),false,'string axis rejected');
+ assert.equal(valid({...packet,frames:[[20]]}),false,'missing second axis rejected');
+ assert.ok(source.includes('if(!validPreviewMovementBatch(body))'),'parent must use this validator');
+ assert.ok(!source.includes('Invalid movement axes'),'regression: parent still expects old dx/dy');
 });
 test('rendered V16 game preserves approved forest, HUD and camera but disables offline points in preview',()=>{
  const original=readFileSync(new URL('../v16-approved/index.html',import.meta.url),'utf8');
