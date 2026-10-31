@@ -153,6 +153,18 @@ test('preview movement rate budget rejects forged speed, malformed frames and sk
  assert.ok(Number.isFinite(moved.x));
  assert.deepEqual(room.movePreview('alice',[[100,0]],2,now+101,p.previewNonce),moved);
 });
+test('preview protocol probes actual DO code and never grants anonymous movement',async()=>{
+ const t=rig();
+ const check=await t.call('A','preview/protocol');
+ assert.equal(check.status,200);
+ assert.equal(check.result.movementProtocol,'Sync V16.25');
+ assert.equal(check.result.durableObjectCode,'v16-preview-batched-input-v2');
+ const unknown=await t.call('A','preview/protocol',{x:1});
+ assert.equal(unknown.status,405);
+ const old=await t.call('A','preview/move',{dx:100,dy:0});
+ assert.equal(old.status,400);
+ assert.match(old.result.error,/Player not joined/);
+});
 test('preview cannot be accessed anonymously, by VIP, or when its independent flag is disabled',async()=>{
  const t=rig();
  assert.equal((await t.call('A','preview/world')).status,200);
@@ -175,7 +187,7 @@ test('only same-origin frame can request actions; Firebase tokens never sent int
    '"/api/v16/preview/"','auth.currentUser.getIdToken()','getToken(appCheck)',
    'const {uid,...safe}=value.result','previewVerified=true'])
   assert.ok(BETA_LOGIN_PAGE.includes(key),key);
- assert.ok(GAME_PREVIEW_PAGE.includes('Sync V16.24'), 'manual Android testers must be able to spot the deployed movement build');
+ assert.ok(GAME_PREVIEW_PAGE.includes('Sync V16.25'), 'manual Android testers must be able to spot the deployed movement build');
  assert.ok(GAME_PREVIEW_PAGE.includes('th2d-preview-result'));
  assert.ok(GAME_PREVIEW_PAGE.includes('window.parent.postMessage'));
  assert.ok(!GAME_PREVIEW_PAGE.includes('firebasejs/'));
