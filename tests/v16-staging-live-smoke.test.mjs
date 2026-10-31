@@ -12,6 +12,7 @@ test('isolated V16 staging Worker is alive with reads only and no score writes',
  assert.equal(data.map,'v16-forest-100');
  assert.equal(data.writesEnabled,false);
  assert.equal(data.readsEnabled,true);
+ assert.equal(health.headers.get('cache-control'),'no-store');
 });
 test('anonymous world reads are denied and score writes stay closed',async()=>{
  const world=await fetch(BASE+'/api/v16/world?scope=free',{signal:AbortSignal.timeout(15000)});
