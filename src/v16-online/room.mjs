@@ -162,6 +162,18 @@ export class V16Room {
  leaders(count=20){return [...this.scores.entries()]
   .sort(([a,x],[b,y])=>y-x||(this.names.get(a)||a).localeCompare(this.names.get(b)||b))
   .slice(0,count).map(([uid,score],i)=>({rank:i+1,name:this.names.get(uid)||'Hunter',score}));}
+ // Safe public season snapshot: no UID, email, receipts or admin history.
+ seasonStatus(now){
+  validNow(now);
+  const schedule=periodFor(this.scope,now);
+  const last=this.winners.at(-1)||null;
+  const previousWinner=last?.scope===this.scope
+   ?{periodId:last.period,closedAt:new Date(last.closedAt).toISOString(),
+     winner:last.top?{name:last.top.name,score:last.top.score}:null}
+   :null;
+  return {periodId:schedule.periodId,startsAt:schedule.startsAt,
+   resetsAt:schedule.resetsAt,timezone:schedule.timezone,previousWinner};
+ }
  publicView(now){validNow(now);this.rollover(now);this.chestRespawn(now);
   // Expired coin cooldowns must advance the shared snapshot version, or
   // conditional polls would claim the world is unchanged after a respawn.
@@ -173,7 +185,7 @@ export class V16Room {
   if(reappeared)this.version++;
   return {version:this.version,scope:this.scope,mapVersion:WORLD_VERSION,seed:this.seed,period:this.period,
    coins:this.map.coins.map((c,i)=>({id:i,x:c.x,y:c.y,readyAt:this.coinReadyAt[i]})),
-   chest:{...this.chest},leaders:this.leaders()};
+   chest:{...this.chest},leaders:this.leaders(),season:this.seasonStatus(now)};
  }
  privateView(uid,now){const p=this.requirePlayer(uid);return {uid,position:{x:p.x,y:p.y},score:this.scores.get(uid)||0,
   nextClaimSeq:(this.claimSequences.get(uid)||0)+1,world:this.publicView(now)};}
