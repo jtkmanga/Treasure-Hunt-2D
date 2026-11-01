@@ -19,7 +19,9 @@ test('isolated V16 staging Worker is alive with reads only and no score writes',
  const protocol=await liveDo.json();
  assert.equal(protocol.movementProtocol,'Sync V16.26');
  assert.equal(protocol.durableObjectCode,'v16-preview-batched-input-v2');
+ assert.equal(protocol.freeSeasonPreview,'free-season-v1','live DO must have adopted season code');
  assert.equal(data.movementProtocol,'Sync V16.26','live staging must serve movement fix');
+ assert.equal(data.freeSeasonPreview,'free-season-v1','live Worker must expose new season build');
  assert.equal(health.headers.get('cache-control'),'no-store');
 });
 test('anonymous world reads are denied and score writes stay closed',async()=>{
