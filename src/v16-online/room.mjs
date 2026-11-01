@@ -9,6 +9,13 @@ export const REWARDS=Object.freeze([ [100,500],[500,300],[1000,190],[5000,9],[10
 export const SEED=123456789;
 function ensure(condition,message){if(!condition)throw new Error(message)}
 function validUid(uid){ensure(typeof uid==='string'&&uid.length>0&&uid.length<=128&&!/[\x00-\x1f\x7f]/.test(uid),'Invalid verified UID')}
+function publicNickname(value){
+ // Never show an email address in a public leaderboard, including names
+ // created before this rule. Also remove bidirectional/control characters.
+ const name=String(value||'Hunter').trim().slice(0,36);
+ return !name||name.includes('@')||/[<>\x00-\x1f\x7f\u202a-\u202e\u2066-\u2069]/i.test(name)
+  ?'Hunter':name;
+}
 export function rewardFromSlot(slot){ensure(Number.isInteger(slot)&&slot>=0&&slot<1000,'Invalid secure reward slot');for(const [coins,weight] of REWARDS){if(slot<weight)return coins;slot-=weight}throw Error('Invalid reward table')}
 export function secureSlot(){const limit=2**32-(2**32%1000);let x;do{x=crypto.getRandomValues(new Uint32Array(1))[0]}while(x>=limit);return x%1000}
 function walkable(tiles,x,y){const r=.26;return [[x-r,y-r],[x+r,y-r],[x-r,y+r],[x+r,y+r]].every(([a,b])=>tiles[Math.floor(b)]?.[Math.floor(a)]===0)}
@@ -51,7 +58,7 @@ export class V16Room {
   if(!this.players.has(uid))this.players.set(uid,{...this.map.spawn,lastAt:now});
   const firstJoin=!this.scores.has(uid);
   if(firstJoin)this.scores.set(uid,0);
-  const newName=String(label||'Hunter').trim().slice(0,36)||'Hunter';
+  const newName=publicNickname(label);
   if(firstJoin||this.names.get(uid)!==newName)this.version++;
   this.names.set(uid,newName);
   return this.privateView(uid,now);
@@ -161,7 +168,19 @@ export class V16Room {
  }
  leaders(count=20){return [...this.scores.entries()]
   .sort(([a,x],[b,y])=>y-x||(this.names.get(a)||a).localeCompare(this.names.get(b)||b))
-  .slice(0,count).map(([uid,score],i)=>({rank:i+1,name:this.names.get(uid)||'Hunter',score}));}
+  .slice(0,count).map(([uid,score],i)=>({rank:i+1,name:publicNickname(this.names.get(uid)),score}));}
+ // Safe public season snapshot: no UID, email, receipts or admin history.
+ seasonStatus(now){
+  validNow(now);
+  const schedule=periodFor(this.scope,now);
+  const last=this.winners.at(-1)||null;
+  const previousWinner=last?.scope===this.scope
+   ?{periodId:last.period,closedAt:new Date(last.closedAt).toISOString(),
+     winner:last.top?{name:publicNickname(last.top.name),score:last.top.score}:null}
+   :null;
+  return {periodId:schedule.periodId,startsAt:schedule.startsAt,
+   resetsAt:schedule.resetsAt,timezone:schedule.timezone,previousWinner};
+ }
  publicView(now){validNow(now);this.rollover(now);this.chestRespawn(now);
   // Expired coin cooldowns must advance the shared snapshot version, or
   // conditional polls would claim the world is unchanged after a respawn.
@@ -173,7 +192,7 @@ export class V16Room {
   if(reappeared)this.version++;
   return {version:this.version,scope:this.scope,mapVersion:WORLD_VERSION,seed:this.seed,period:this.period,
    coins:this.map.coins.map((c,i)=>({id:i,x:c.x,y:c.y,readyAt:this.coinReadyAt[i]})),
-   chest:{...this.chest},leaders:this.leaders()};
+   chest:{...this.chest},leaders:this.leaders(),season:this.seasonStatus(now)};
  }
  privateView(uid,now){const p=this.requirePlayer(uid);return {uid,position:{x:p.x,y:p.y},score:this.scores.get(uid)||0,
   nextClaimSeq:(this.claimSequences.get(uid)||0)+1,world:this.publicView(now)};}

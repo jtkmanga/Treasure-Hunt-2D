@@ -159,6 +159,7 @@ test('preview protocol probes actual DO code and never grants anonymous movement
  assert.equal(check.status,200);
  assert.equal(check.result.movementProtocol,'Sync V16.26');
  assert.equal(check.result.durableObjectCode,'v16-preview-batched-input-v2');
+ assert.equal(check.result.freeSeasonPreview,'free-season-v1');
  const unknown=await t.call('A','preview/protocol',{x:1});
  assert.equal(unknown.status,405);
  const old=await t.call('A','preview/move',{dx:100,dy:0});
@@ -246,6 +247,22 @@ test('rendered V16 game preserves approved forest, HUD and camera but disables o
  const parent=BETA_LOGIN_PAGE.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1];
  assert.ok(parent);
  assert.doesNotThrow(()=>new vm.Script(parent.replace(/^import\s+.+?;\s*$/gm,'')));
+});
+test('beta rankings show server-authoritative Thai reset timer and previous winner without extra polling',()=>{
+ const html=GAME_PREVIEW_PAGE;
+ for(const id of ['season-reset-countdown','season-reset-date','season-previous-winner'])
+  assert.ok(html.includes('id="'+id+'"'),id);
+ assert.ok(html.includes('previewSeason=worldState.season'), 'must use authoritative world snapshot');
+ assert.ok(html.includes('previewSeason.previousWinner'), 'must display prior winner from server');
+ assert.ok(html.includes('previewScorePeriod<worldState.season.periodId'), 'HUD score must reset at verified weekly boundary');
+ assert.ok(html.includes('reward.period>=previewScorePeriod'), 'late prior season claim must not overwrite new score');
+ assert.ok(html.includes("timeZone:'Asia/Bangkok'"), 'reset label must use explicit Bangkok timezone');
+ assert.ok(html.includes("el('season-reset-countdown').textContent=timeLabel(Date.parse(previewSeason.resetsAt)-Date.now())"),
+  'countdown advances locally between ordinary world polls');
+ assert.ok(!html.includes('previewRequest("season")'), 'no additional polling endpoint should be introduced');
+ const start=html.indexOf('<script>'),end=html.indexOf('</script>',start);
+ const script=start>=0&&end>start?html.slice(start+8,end):'';
+ assert.ok(script.includes('previewSeason'),'inline game module contains season display');
 });
 test('preview HTML is same-origin framed only and full world read remains gated',async()=>{
  const t=rig();
