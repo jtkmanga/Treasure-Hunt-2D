@@ -247,6 +247,19 @@ test('rendered V16 game preserves approved forest, HUD and camera but disables o
  assert.ok(parent);
  assert.doesNotThrow(()=>new vm.Script(parent.replace(/^import\s+.+?;\s*$/gm,'')));
 });
+test('beta rankings show server-authoritative Thai reset timer and previous winner without extra polling',()=>{
+ const html=GAME_PREVIEW_PAGE;
+ for(const id of ['season-reset-countdown','season-reset-date','season-previous-winner'])
+  assert.ok(html.includes('id="'+id+'"'),id);
+ assert.ok(html.includes('previewSeason=worldState.season'), 'must use authoritative world snapshot');
+ assert.ok(html.includes('previewSeason.previousWinner'), 'must display prior winner from server');
+ assert.ok(html.includes("timeZone:'Asia/Bangkok'"), 'reset label must use explicit Bangkok timezone');
+ assert.ok(html.includes("el('season-reset-countdown').textContent=timeLabel(deadline-Date.now())"),
+  'countdown advances locally between ordinary world polls');
+ assert.ok(!html.includes('previewRequest("season")'), 'no additional polling endpoint should be introduced');
+ const script=html.match(/<script>([\\s\\S]*?)<\\/script>/)?.[1]||'';
+ assert.ok(script.includes('previewSeason'),'inline game module contains season display');
+});
 test('preview HTML is same-origin framed only and full world read remains gated',async()=>{
  const t=rig();
  const page=await handleV16Request(new Request(BASE+'/beta-game'),t.env);
