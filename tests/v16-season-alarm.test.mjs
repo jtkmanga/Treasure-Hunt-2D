@@ -85,3 +85,17 @@ test('VIP reset is daily at Bangkok midnight and season shows empty winner when 
  assert.deepEqual(after.season.previousWinner,{periodId:'2026-10-31',
   closedAt:'2026-10-31T17:00:00.000Z',winner:null});
 });
+
+test('season leaderboard does not expose submitted or legacy email-like display names',()=>{
+ const now=Date.parse('2026-10-31T16:59:59.000Z');
+ const room=new V16Room('free1',now,()=>0);
+ room.join('private-uid-1',now,'someone@example.com');
+ room.scores.set('private-uid-1',20);
+ assert.equal(room.publicView(now).leaders[0].name,'Hunter','new email nickname must be sanitized');
+ room.names.set('private-uid-1','legacy@example.com');
+ assert.equal(room.publicView(now).leaders[0].name,'Hunter','historical names must also be redacted');
+ const after=room.publicView(now+1000);
+ assert.equal(after.season.previousWinner.winner.name,'Hunter','winner snapshot must never display email');
+ assert.ok(!JSON.stringify(after).includes('private-uid-1'));
+ assert.ok(!JSON.stringify(after).includes('@'));
+});
