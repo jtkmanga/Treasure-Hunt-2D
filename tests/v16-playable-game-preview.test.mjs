@@ -159,6 +159,7 @@ test('preview protocol probes actual DO code and never grants anonymous movement
  assert.equal(check.status,200);
  assert.equal(check.result.movementProtocol,'Sync V16.26');
  assert.equal(check.result.durableObjectCode,'v16-preview-batched-input-v2');
+ assert.equal(check.result.freeSeasonPreview,'free-season-v1');
  const unknown=await t.call('A','preview/protocol',{x:1});
  assert.equal(unknown.status,405);
  const old=await t.call('A','preview/move',{dx:100,dy:0});
