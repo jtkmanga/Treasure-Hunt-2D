@@ -32,12 +32,15 @@ test('no coin credit leaks from RAM if durable storage temporarily refuses write
  assert.equal(l.room.room.scores.get('alice'),0);
  assert.equal(l.room.room.coinReadyAt[0],0);
  assert.equal(l.room.room.claimSequences.get('alice')||0,0);
+ assert.equal(l.room.room.auditView().entries.length,0,'rolled-back score cannot leave an audit entry');
+ assert.equal(l.persisted.get('v16-state').auditEvents.length,0,'failed write cannot persist a phantom audit');
  assert.equal(l.persisted.get('v16-state').scores.find(([uid])=>uid==='alice')[1],0);
  const retry=await l.room.fetch(request('collect','alice',{requestId:'coin-claim-0001',claimSeq:1}));
  assert.equal(retry.status,200);
  assert.equal((await retry.json()).result.amount,1);
  assert.equal(l.room.room.scores.get('alice'),1);
  assert.equal(l.persisted.get('v16-state').scores.find(([uid])=>uid==='alice')[1],1);
+ assert.equal(l.persisted.get('v16-state').auditEvents.length,1,'successful retry saves exactly one corresponding audit');
 });
 test('if storage cannot be read after failed write, all later operations fail closed',async()=>{
  const l=lab();await l.ready();
