@@ -5,6 +5,8 @@ import {periodFor} from './periods.mjs';
 export const WORLD_VERSION='v16-forest-100';
 export const COIN_RESPAWN_MS=60_000;
 export const CHEST_RESPAWN_MS=4*60*60_000;
+// First-stage recent audit window, not full production accounting history.
+export const AUDIT_WINDOW=256;
 export const REWARDS=Object.freeze([ [100,500],[500,300],[1000,190],[5000,9],[10000,1] ]);
 export const SEED=123456789;
 function ensure(condition,message){if(!condition)throw new Error(message)}
@@ -29,6 +31,7 @@ export class V16Room {
   this.chest={x:this.map.chest.x,y:this.map.chest.y,readyAt:0};
   this.scores=new Map();this.names=new Map();this.players=new Map();this.winners=[];
   this.claimIds=new Map();this.claimSequences=new Map();this.version=0;
+  this.auditEvents=[];this.auditNextId=1;
  }
  static restore(data,now=Date.now(),draw=secureSlot){
   ensure(data&&data.schema===1,'Unknown saved room format');
@@ -42,12 +45,29 @@ export class V16Room {
   room.claimIds=new Map((data.claimIds||[]).map(([uid,ids])=>[uid,new Map(ids)]));
   room.claimSequences=new Map(data.claimSequences||[]);
   ensure([...room.claimSequences.values()].every(n=>Number.isSafeInteger(n)&&n>=0),'Corrupt claim sequence');
+  // Legacy states predate score audit; do not invent historical receipts.
+  if(data.auditEvents!==undefined){
+   ensure(Array.isArray(data.auditEvents)&&data.auditEvents.length<=AUDIT_WINDOW,'Corrupt audit window');
+   ensure(Number.isSafeInteger(data.auditNextId)&&data.auditNextId>0,'Corrupt audit sequence');
+   let last=0;
+   for(const entry of data.auditEvents){
+    ensure(entry&&Number.isSafeInteger(entry.id)&&entry.id>last&&entry.id<data.auditNextId,'Corrupt audit event order');
+    validUid(entry.uid);
+    ensure(entry.scope===room.scope&&typeof entry.period==='string'&&entry.period.length===10,'Corrupt audit scope');
+    ensure((entry.kind==='coin'||entry.kind==='chest')&&Number.isSafeInteger(entry.amount)&&entry.amount>0,'Corrupt audit award');
+    ensure(Number.isSafeInteger(entry.score)&&entry.score>=entry.amount,'Corrupt audit score');
+    ensure(Number.isSafeInteger(entry.at)&&entry.at>=0,'Corrupt audit time');
+    last=entry.id;
+   }
+   room.auditEvents=data.auditEvents.map(e=>({...e}));room.auditNextId=data.auditNextId;
+  }
   return room;
  }
  save(){return {schema:1,scope:this.scope,seed:this.seed,period:this.period,
   coinReadyAt:this.coinReadyAt.slice(),chest:{...this.chest},scores:[...this.scores],names:[...this.names],
   winners:this.winners.slice(-100),claimIds:[...this.claimIds].map(([uid,v])=>[uid,[...v].slice(-32)]),
-  claimSequences:[...this.claimSequences],version:this.version};}
+  claimSequences:[...this.claimSequences],version:this.version,
+  auditEvents:this.auditEvents.map(e=>({...e})),auditNextId:this.auditNextId};}
  rollover(now){validNow(now);const period=periodFor(this.scope,now).periodId;
   if(period===this.period)return false;
   const top=this.leaders(1)[0]||null;
@@ -159,12 +179,25 @@ export class V16Room {
    ensure(Number.isSafeInteger(total),'Score overflow');
    this.scores.set(uid,total);this.version++;
    result={...result,score:total,scope:this.scope,period:this.period,requestId,version:this.version};
+   // Score + receipt + audit share one persisted v16-state write. A failed
+   // storage.put rolls back all three; rejected/replayed requests log nothing.
+   this.auditEvents.push({id:this.auditNextId++,uid,scope:this.scope,
+    period:this.period,kind:result.kind,coinId:result.coinId??null,
+    amount:result.amount,score:total,requestId,claimSeq,at:now});
+   if(this.auditEvents.length>AUDIT_WINDOW)this.auditEvents.shift();
   }
   // Remember misses to stop request replay from becoming a future free claim.
   memory.set(requestId,result);if(memory.size>32)memory.delete(memory.keys().next().value);
   if(claimSeq!==null)this.claimSequences.set(uid,claimSeq);
   this.claimIds.set(uid,memory);
   return result;
+ }
+ auditView(limit=40){
+  ensure(Number.isInteger(limit)&&limit>=1&&limit<=50,'Invalid admin audit limit');
+  return {scope:this.scope,window:AUDIT_WINDOW,nextId:this.auditNextId,
+   earliestRetainedId:this.auditEvents[0]?.id??null,
+   entries:this.auditEvents.slice(-limit).reverse().map(e=>({...e})),
+   note:'Recent staging audit only; not complete public ledger'};
  }
  leaders(count=20){return [...this.scores.entries()]
   .sort(([a,x],[b,y])=>y-x||(this.names.get(a)||a).localeCompare(this.names.get(b)||b))
