@@ -257,7 +257,8 @@ test('beta rankings show server-authoritative Thai reset timer and previous winn
  assert.ok(html.includes("el('season-reset-countdown').textContent=timeLabel(deadline-Date.now())"),
   'countdown advances locally between ordinary world polls');
  assert.ok(!html.includes('previewRequest("season")'), 'no additional polling endpoint should be introduced');
- const script=html.match(/<script>([\\s\\S]*?)<\\/script>/)?.[1]||'';
+ const start=html.indexOf('<script>'),end=html.indexOf('</script>',start);
+ const script=start>=0&&end>start?html.slice(start+8,end):'';
  assert.ok(script.includes('previewSeason'),'inline game module contains season display');
 });
 test('preview HTML is same-origin framed only and full world read remains gated',async()=>{
