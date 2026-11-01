@@ -36,6 +36,18 @@ test('anonymous world reads are denied and score writes stay closed',async()=>{
  assert.equal(score.status,403);
  assert.match((await score.text()),/Online writes not enabled/);
 });
+test('private administrator audit remains closed on public Staging',async()=>{
+ const base=BASE+'/api/v16/admin/audit?scope=free&room=preview';
+ const blocked=await fetch(base,{signal:AbortSignal.timeout(15000)});
+ assert.equal(blocked.status,403,'admin audit must remain disabled without an explicit secret and flag');
+ assert.match((await blocked.text()),/Admin audit unavailable/);
+ const fromOtherRoom=await fetch(BASE+'/api/v16/admin/audit?scope=free&room=free',
+  {signal:AbortSignal.timeout(15000)});
+ assert.equal(fromOtherRoom.status,403);
+ const editAttempt=await fetch(base,{method:'POST',headers:{'content-type':'application/json'},
+  body:'{}',signal:AbortSignal.timeout(15000)});
+ assert.equal(editAttempt.status,403,'no admin write operations are enabled');
+});
 test('anonymous coin race is denied while real Free writes stay disabled',async()=>{
  const [read,join,collect]=await Promise.all([
   fetch(BASE+'/api/v16/pilot/world?scope=free',{signal:AbortSignal.timeout(15000)}),
