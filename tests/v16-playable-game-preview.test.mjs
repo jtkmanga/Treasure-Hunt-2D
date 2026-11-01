@@ -253,8 +253,10 @@ test('beta rankings show server-authoritative Thai reset timer and previous winn
   assert.ok(html.includes('id="'+id+'"'),id);
  assert.ok(html.includes('previewSeason=worldState.season'), 'must use authoritative world snapshot');
  assert.ok(html.includes('previewSeason.previousWinner'), 'must display prior winner from server');
+ assert.ok(html.includes('previewScorePeriod<worldState.season.periodId'), 'HUD score must reset at verified weekly boundary');
+ assert.ok(html.includes('reward.period>=previewScorePeriod'), 'late prior season claim must not overwrite new score');
  assert.ok(html.includes("timeZone:'Asia/Bangkok'"), 'reset label must use explicit Bangkok timezone');
- assert.ok(html.includes("el('season-reset-countdown').textContent=timeLabel(deadline-Date.now())"),
+ assert.ok(html.includes("el('season-reset-countdown').textContent=timeLabel(Date.parse(previewSeason.resetsAt)-Date.now())"),
   'countdown advances locally between ordinary world polls');
  assert.ok(!html.includes('previewRequest("season")'), 'no additional polling endpoint should be introduced');
  const start=html.indexOf('<script>'),end=html.indexOf('</script>',start);
