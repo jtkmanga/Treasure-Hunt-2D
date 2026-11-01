@@ -20,8 +20,10 @@ test('isolated V16 staging Worker is alive with reads only and no score writes',
  assert.equal(protocol.movementProtocol,'Sync V16.26');
  assert.equal(protocol.durableObjectCode,'v16-preview-batched-input-v2');
  assert.equal(protocol.freeSeasonPreview,'free-season-v1','live DO must have adopted season code');
+ assert.equal(protocol.scoreAudit,'private-audit-v1','running DO must have private score audit build');
  assert.equal(data.movementProtocol,'Sync V16.26','live staging must serve movement fix');
  assert.equal(data.freeSeasonPreview,'free-season-v1','live Worker must expose new season build');
+ assert.equal(data.scoreAudit,'private-audit-v1','running Worker must have private score audit build');
  assert.equal(health.headers.get('cache-control'),'no-store');
 });
 test('anonymous world reads are denied and score writes stay closed',async()=>{
@@ -33,6 +35,18 @@ test('anonymous world reads are denied and score writes stay closed',async()=>{
   body:'{}',signal:AbortSignal.timeout(15000)});
  assert.equal(score.status,403);
  assert.match((await score.text()),/Online writes not enabled/);
+});
+test('private administrator audit remains closed on public Staging',async()=>{
+ const base=BASE+'/api/v16/admin/audit?scope=free&room=preview';
+ const blocked=await fetch(base,{signal:AbortSignal.timeout(15000)});
+ assert.equal(blocked.status,403,'admin audit must remain disabled without an explicit secret and flag');
+ assert.match((await blocked.text()),/Admin audit unavailable/);
+ const fromOtherRoom=await fetch(BASE+'/api/v16/admin/audit?scope=free&room=free',
+  {signal:AbortSignal.timeout(15000)});
+ assert.equal(fromOtherRoom.status,403);
+ const editAttempt=await fetch(base,{method:'POST',headers:{'content-type':'application/json'},
+  body:'{}',signal:AbortSignal.timeout(15000)});
+ assert.equal(editAttempt.status,403,'no admin write operations are enabled');
 });
 test('anonymous coin race is denied while real Free writes stay disabled',async()=>{
  const [read,join,collect]=await Promise.all([
@@ -174,6 +188,7 @@ test('beta login mobile page is actually served from deployed Worker',async()=>{
  assert.ok(html.includes('function validPreviewMovementBatch(body)'),'deployed iframe bridge must validate batch protocol');
  assert.ok(html.includes('if(!validPreviewMovementBatch(body))'),'deployed iframe bridge must accept new batch form');
  assert.ok(!html.includes('Invalid movement axes'),'stale dx/dy validation must never ship');
+ assert.ok(html.includes('id="adminAuditPanel" hidden'), 'admin section hidden until verified');
  assert.ok(html.length>5000);
  assert.ok(!html.includes('V16_BETA_UIDS'));
  assert.ok(!html.includes('FIREBASE_WEB_API_KEY'));

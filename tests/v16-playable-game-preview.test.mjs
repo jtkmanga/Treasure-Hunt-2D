@@ -56,6 +56,51 @@ function rig(){
  return {call,instances,states,env,init};
 }
 
+test('private score audit endpoint is disabled by default and never serves unauthorized accounts',async()=>{
+ const t=rig();
+ assert.equal((await t.call('A','admin/audit')).status,403,'admin flag absent');
+ t.env.ENABLE_V16_ADMIN_READS='true';
+ assert.equal((await t.call('A','admin/audit')).status,403,'admin UID secret absent');
+ t.env.V16_ADMIN_UID='alice';
+ assert.equal((await t.call('B','admin/audit')).status,403,'invited player is not an admin');
+ const unauthed=await handleV16Request(new Request(BASE+'/api/v16/admin/audit?scope=free'),t.env);
+ assert.equal(unauthed.status,401,'anonymous client may never inspect audit');
+ const badRoom=await handleV16Request(new Request(BASE+'/api/v16/admin/audit?scope=free&room=not-a-room'),t.env);
+ assert.equal(badRoom.status,400);
+ const admin=await t.call('A','admin/audit');
+ assert.equal(admin.status,200);
+ assert.deepEqual(admin.result.audit.entries,[]);
+ // Joining a separate preview does not touch the actual Free world.
+ const joined=await t.call('A','preview/join',{name:'HunterA'});
+ assert.equal(joined.status,200);
+ const preview=t.instances.get('free1-forest-game-preview-v1');
+ const coin=preview.room.map.coins[0];
+ Object.assign(preview.room.requirePlayer('alice'),{x:coin.x,y:coin.y});
+ const won=await t.call('A','preview/collect',{requestId:'admin-audit-claim-0001',claimSeq:1});
+ assert.equal(won.status,200);
+ assert.equal(won.result.result.kind,'coin');
+ const checked=await t.call('A','admin/audit');
+ assert.equal(checked.status,200);
+ assert.equal(checked.result.audit.entries.length,1);
+ assert.equal(checked.result.audit.entries[0].uid,'alice');
+ assert.equal(checked.result.audit.entries[0].requestId,'admin-audit-claim-0001');
+ const normal=await t.call('B','preview/world');
+ assert.equal(normal.status,200);
+ assert.ok(!JSON.stringify(normal.result).includes('admin-audit-claim-0001'),'raw audit is never on player world view');
+});
+test('admin panel never enables itself without signed server permission',()=>{
+ const page=BETA_LOGIN_PAGE;
+ assert.ok(page.includes('id="adminAuditPanel" hidden'));
+ assert.ok(page.includes("res.status===401||res.status===403"));
+ assert.ok(page.includes("el('adminAuditPanel').hidden=false"));
+ assert.ok(page.includes("fetch('/api/v16/admin/audit?scope=free&room=preview'"));
+ assert.ok(page.includes("'authorization':'Bearer '+jwt"));
+ assert.ok(page.includes("'x-firebase-appcheck':attestation.token"));
+ assert.ok(!page.includes('localStorage.setItem("audit"'));
+ const start=page.indexOf('<script type="module">'),end=page.indexOf('</script>',start);
+ assert.ok(start>=0&&end>start);
+ assert.doesNotThrow(()=>new vm.Script(page.slice(start+22,end).replace(/^import\s+.+?;\s*$/gm,'')));
+});
 test('online forest preview is a separate Durable Object from ordinary Free world and coin race',async()=>{
  const t=rig();
  const read=await t.call('A','world');
@@ -160,6 +205,7 @@ test('preview protocol probes actual DO code and never grants anonymous movement
  assert.equal(check.result.movementProtocol,'Sync V16.26');
  assert.equal(check.result.durableObjectCode,'v16-preview-batched-input-v2');
  assert.equal(check.result.freeSeasonPreview,'free-season-v1');
+ assert.equal(check.result.scoreAudit,'private-audit-v1');
  const unknown=await t.call('A','preview/protocol',{x:1});
  assert.equal(unknown.status,405);
  const old=await t.call('A','preview/move',{dx:100,dy:0});
