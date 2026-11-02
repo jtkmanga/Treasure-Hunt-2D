@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {journalSupported,persistGameState,readJournalPage} from '../src/v16-online/durable-score-journal.mjs';
+import {journalSupported,persistGameState,readJournalPage,inspectJournalIntegrity} from '../src/v16-online/durable-score-journal.mjs';
 import {V16Room} from '../src/v16-online/room.mjs';
 import {V16WorldRoom} from '../src/v16-online/worker.mjs';
 
@@ -23,6 +23,10 @@ function sqlHarness(){
      throw Error('UNIQUE constraint failed');
     journal.set(id,{id,uid,scope,period,kind,coinId,amount,score,requestId,claimSeq,at});
     return [];
+   }
+   if(query.startsWith('SELECT COUNT(*) AS count, MIN(event_id)')){
+    if(!table)throw Error('no such table: v16_award_journal');
+    const ids=[...journal.keys()];return [{count:ids.length,firstId:ids.length?Math.min(...ids):null,lastId:ids.length?Math.max(...ids):null}];
    }
    if(query.startsWith('SELECT MIN(event_id)')){
     if(!table)throw Error('no such table: v16_award_journal');
@@ -112,6 +116,82 @@ test('a failed archive insertion or failed snapshot put leaves neither score nor
  await assert.rejects(persistGameState(h.storage,r.save(),second,{requireJournal:true}),/snapshot failure/);
  assert.deepEqual(h.saved.get('v16-state'),good);
  assert.equal(h.journal.size,1,'SQL insert rolled back with KV put');
+});
+test('journal integrity verifies all 260 awards while using bounded row comparison',async()=>{
+ const h=sqlHarness(),r=new V16Room('free1',START,()=>0);r.join('alice',START,'HunterA');
+ for(let i=0;i<260;i++){
+  const award=addCoin(r,'alice','verify-coin-'+String(i).padStart(6,'0'),START+1000+i*61_000);
+  await persistGameState(h.storage,r.save(),award,{requireJournal:true});
+ }
+ const snapshot=cloneSafe(h.saved.get('v16-state'));
+ const report=inspectJournalIntegrity(h.storage,snapshot);
+ assert.equal(report.status,'ok');
+ assert.equal(report.archivedCount,260);
+ assert.equal(report.firstStoredId,1);assert.equal(report.lastStoredId,260);
+ assert.equal(report.recentCompared,64);
+ assert.equal(report.currentScoresChecked,1);
+ assert.deepEqual(report.reasons,[]);
+ assert.equal(report.archiveIsHistoricalBackfill,false);
+ assert.ok(!JSON.stringify(report).includes('alice'),'integrity summary must not disclose UID');
+ assert.deepEqual(h.saved.get('v16-state'),snapshot,'integrity check must be read only');
+});
+test('integrity flags missing SQL event ID and mismatched overlapping receipt',async()=>{
+ const h=sqlHarness(),r=new V16Room('free1',START,()=>0);r.join('alice',START,'HunterA');
+ for(let i=0;i<4;i++){
+  const award=addCoin(r,'alice','integrity-gap-'+String(i).padStart(6,'0'),START+1000+i*61_000);
+  await persistGameState(h.storage,r.save(),award,{requireJournal:true});
+ }
+ const snapshot=cloneSafe(h.saved.get('v16-state'));
+ h.journal.delete(2);
+ const missing=inspectJournalIntegrity(h.storage,snapshot);
+ assert.equal(missing.status,'mismatch');
+ assert.ok(missing.reasons.includes('archived-event-id-gap'));
+ h.journal.get(4).score=999;
+ const mismatch=inspectJournalIntegrity(h.storage,snapshot);
+ assert.ok(mismatch.reasons.includes('recent-audit-archive-mismatch'));
+ assert.ok(mismatch.reasons.includes('current-season-score-divergence'));
+});
+test('integrity reports SQL snapshot head divergence and score chain issues',async()=>{
+ const h=sqlHarness(),r=new V16Room('free1',START,()=>0);r.join('alice',START,'HunterA');
+ for(let i=0;i<3;i++){
+  const award=addCoin(r,'alice','integrity-head-'+String(i).padStart(6,'0'),START+1000+i*61_000);
+  await persistGameState(h.storage,r.save(),award,{requireJournal:true});
+ }
+ const saved=cloneSafe(h.saved.get('v16-state'));
+ const changed=cloneSafe(saved);changed.auditNextId=5;
+ const report=inspectJournalIntegrity(h.storage,changed);
+ assert.ok(report.reasons.includes('journal-snapshot-head-mismatch'));
+ h.journal.get(2).score=31;
+ const chain=inspectJournalIntegrity(h.storage,saved);
+ assert.ok(chain.reasons.includes('recent-award-score-chain-mismatch'));
+});
+test('journal integrity handles an inherited nonzero score and Sunday season reset',async()=>{
+ const h=sqlHarness(),r=new V16Room('free1',START,()=>0);r.join('alice',START,'HunterA');
+ // Two awards made before the archive existed are not fabricated in SQL.
+ for(let i=0;i<2;i++)addCoin(r,'alice','pre-archive-'+String(i).padStart(6,'0'),START+1000+i*61_000);
+ const third=addCoin(r,'alice','post-archive-0001',START+1000+2*61_000);
+ await persistGameState(h.storage,r.save(),third,{requireJournal:true});
+ const report=inspectJournalIntegrity(h.storage,r.save());
+ assert.equal(report.status,'ok');
+ assert.equal(report.firstStoredId,3);
+ assert.equal(report.archivedCount,1);
+ assert.equal(report.currentScoresChecked,1);
+ const nextWeek=Date.parse('2026-11-07T17:00:00.000Z');
+ r.rollover(nextWeek);
+ const after=inspectJournalIntegrity(h.storage,r.save());
+ assert.equal(after.status,'ok');
+ assert.equal(after.currentScoresChecked,0,'scores from previous period are never compared against reset scores');
+});
+test('private integrity handles missing journal without fabricating history or leaking players',()=>{
+ const h=sqlHarness(),r=new V16Room('free1',START,()=>0);r.join('alice',START,'HunterA');
+ const empty=inspectJournalIntegrity(h.storage,r.save());
+ assert.equal(empty.status,'not-started');
+ assert.equal(empty.archivedCount,0);
+ assert.equal(empty.firstStoredId,null);
+ const unavailable=inspectJournalIntegrity({},{...r.save()});
+ assert.equal(unavailable.status,'unavailable');
+ assert.ok(!JSON.stringify(empty).includes('alice'));
+ assert.throws(()=>inspectJournalIntegrity(h.storage,{auditNextId:0,auditEvents:[],scores:[],period:'2026-11-01'}),/Invalid journal integrity snapshot/);
 });
 test('non-SQL fallback is allowed for unit harness only; production strict mode fails closed',async()=>{
  const storage={async put(){},async get(){return null}};
