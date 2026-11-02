@@ -104,8 +104,6 @@ test('a failed archive insertion or failed snapshot put leaves neither score nor
  await assert.rejects(persistGameState(h.storage,r.save(),first,{requireJournal:true}),/archive failure/);
  assert.equal(h.saved.has('v16-state'),false);
  assert.equal(h.journal.size,0);
- const after=V16Room.restore(r.save(),START+2000,()=>0);
- after.requirePlayer?.('alice'); // players are intentionally ephemeral after restore
  // Commit the first award, then inject a storage failure on the next valid one.
  await persistGameState(h.storage,r.save(),first,{requireJournal:true});
  const good=cloneSafe(h.saved.get('v16-state'));
