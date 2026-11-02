@@ -23,6 +23,7 @@ test('isolated V16 staging Worker is alive with reads only and no score writes',
  assert.equal(protocol.scoreAudit,'private-audit-v1','running DO must have private score audit build');
  assert.equal(protocol.fullJournal,'sqlite-awards-v1','Durable Object code must support full score journal');
  assert.equal(protocol.journalIntegrity,'read-only-v1','DO must serve integrity verifier code');
+ assert.equal(protocol.pitrApiAvailable,true,'live SQLite-backed DO must provide non-destructive recovery bookmark API');
  assert.equal(protocol.durableJournalSupported,true,'live DO must expose SQLite transaction + synchronous KV support');
  assert.equal(data.movementProtocol,'Sync V16.26','live staging must serve movement fix');
  assert.equal(data.freeSeasonPreview,'free-season-v1','live Worker must expose new season build');
