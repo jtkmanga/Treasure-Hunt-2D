@@ -21,9 +21,12 @@ test('isolated V16 staging Worker is alive with reads only and no score writes',
  assert.equal(protocol.durableObjectCode,'v16-preview-batched-input-v2');
  assert.equal(protocol.freeSeasonPreview,'free-season-v1','live DO must have adopted season code');
  assert.equal(protocol.scoreAudit,'private-audit-v1','running DO must have private score audit build');
+ assert.equal(protocol.fullJournal,'sqlite-awards-v1','Durable Object code must support full score journal');
+ assert.equal(protocol.durableJournalSupported,true,'live DO must expose SQLite transaction + synchronous KV support');
  assert.equal(data.movementProtocol,'Sync V16.26','live staging must serve movement fix');
  assert.equal(data.freeSeasonPreview,'free-season-v1','live Worker must expose new season build');
  assert.equal(data.scoreAudit,'private-audit-v1','running Worker must have private score audit build');
+ assert.equal(data.fullJournal,'sqlite-awards-v1','Worker must expose full score journal version');
  assert.equal(health.headers.get('cache-control'),'no-store');
 });
 test('anonymous world reads are denied and score writes stay closed',async()=>{
@@ -47,6 +50,13 @@ test('private administrator audit remains closed on public Staging',async()=>{
  const editAttempt=await fetch(base,{method:'POST',headers:{'content-type':'application/json'},
   body:'{}',signal:AbortSignal.timeout(15000)});
  assert.equal(editAttempt.status,403,'no admin write operations are enabled');
+});
+test('SQL journal query is not reachable without verified Admin role',async()=>{
+ const res=await fetch(BASE+'/api/v16/admin/audit?scope=free&room=preview&beforeId=1',{
+  headers:{'origin':BASE},signal:AbortSignal.timeout(15000)
+ });
+ assert.equal(res.status,403,'Admin flag remains intentionally disabled on Staging');
+ assert.match(await res.text(),/Admin audit unavailable/);
 });
 test('anonymous coin race is denied while real Free writes stay disabled',async()=>{
  const [read,join,collect]=await Promise.all([
