@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {journalSupported,persistGameState,readJournalPage,inspectJournalIntegrity} from '../src/v16-online/durable-score-journal.mjs';
+import {journalSupported,persistGameState,readJournalPage,inspectJournalIntegrity,inspectRecoveryReadiness} from '../src/v16-online/durable-score-journal.mjs';
 import {V16Room} from '../src/v16-online/room.mjs';
 import {V16WorldRoom} from '../src/v16-online/worker.mjs';
 
@@ -192,6 +192,21 @@ test('private integrity handles missing journal without fabricating history or l
  assert.equal(unavailable.status,'unavailable');
  assert.ok(!JSON.stringify(empty).includes('alice'));
  assert.throws(()=>inspectJournalIntegrity(h.storage,{auditNextId:0,auditEvents:[],scores:[],period:'2026-11-01'}),/Invalid journal integrity snapshot/);
+});
+test('PITR readiness checks only the current bookmark and never initiates any restore',async()=>{
+ let calls=0,restores=0;
+ const storage={async getCurrentBookmark(){calls++;return 'opaque-private-bookmark';},
+  async onNextSessionRestoreBookmark(){restores++;throw Error('Must not trigger restore')}};
+ const readiness=await inspectRecoveryReadiness(storage);
+ assert.equal(calls,1);
+ assert.equal(restores,0);
+ assert.deepEqual(readiness,{
+  pitrApiAvailable:true,bookmarkVerified:true,bookmarkExposed:false,restoreTested:false,
+  separateBackupConfigured:false,retentionDays:30
+ });
+ assert.ok(!JSON.stringify(readiness).includes('opaque-private-bookmark'));
+ assert.equal((await inspectRecoveryReadiness({})).pitrApiAvailable,false);
+ assert.equal((await inspectRecoveryReadiness({async getCurrentBookmark(){throw Error('offline')}})).bookmarkVerified,false);
 });
 test('non-SQL fallback is allowed for unit harness only; production strict mode fails closed',async()=>{
  const storage={async put(){},async get(){return null}};
