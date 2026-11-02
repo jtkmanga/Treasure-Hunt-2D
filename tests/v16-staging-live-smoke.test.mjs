@@ -22,11 +22,14 @@ test('isolated V16 staging Worker is alive with reads only and no score writes',
  assert.equal(protocol.freeSeasonPreview,'free-season-v1','live DO must have adopted season code');
  assert.equal(protocol.scoreAudit,'private-audit-v1','running DO must have private score audit build');
  assert.equal(protocol.fullJournal,'sqlite-awards-v1','Durable Object code must support full score journal');
+ assert.equal(protocol.journalIntegrity,'read-only-v1','DO must serve integrity verifier code');
+ assert.equal(protocol.pitrApiAvailable,true,'live SQLite-backed DO must provide non-destructive recovery bookmark API');
  assert.equal(protocol.durableJournalSupported,true,'live DO must expose SQLite transaction + synchronous KV support');
  assert.equal(data.movementProtocol,'Sync V16.26','live staging must serve movement fix');
  assert.equal(data.freeSeasonPreview,'free-season-v1','live Worker must expose new season build');
  assert.equal(data.scoreAudit,'private-audit-v1','running Worker must have private score audit build');
  assert.equal(data.fullJournal,'sqlite-awards-v1','Worker must expose full score journal version');
+ assert.equal(data.journalIntegrity,'read-only-v1','Worker must expose private consistency verifier');
  assert.equal(health.headers.get('cache-control'),'no-store');
 });
 test('anonymous world reads are denied and score writes stay closed',async()=>{

@@ -70,6 +70,8 @@ test('private score audit endpoint is disabled by default and never serves unaut
  const admin=await t.call('A','admin/audit');
  assert.equal(admin.status,200);
  assert.deepEqual(admin.result.audit.entries,[]);
+ assert.equal(admin.result.integrity.status,'unavailable', 'non-SQL test harness reports unavailable rather than fabricating archive');
+ assert.equal(admin.result.recovery.restoreTested,false,'audit probe is non-destructive');
  // Joining a separate preview does not touch the actual Free world.
  const joined=await t.call('A','preview/join',{name:'HunterA'});
  assert.equal(joined.status,200);
@@ -91,6 +93,8 @@ test('private score audit endpoint is disabled by default and never serves unaut
 test('admin panel never enables itself without signed server permission',()=>{
  const page=BETA_LOGIN_PAGE;
  assert.ok(page.includes('id="adminAuditPanel" hidden'));
+ assert.ok(page.includes('const integrity=data.integrity'), 'Admin screen shows verified private consistency state');
+ assert.ok(page.includes('const recovery=data.recovery'), 'Admin screen must distinguish PITR verification from tested restore');
  assert.ok(page.includes("res.status===401||res.status===403"));
  assert.ok(page.includes("el('adminAuditPanel').hidden=false"));
  assert.ok(page.includes("fetch('/api/v16/admin/audit?scope=free&room=preview'"));
@@ -206,6 +210,7 @@ test('preview protocol probes actual DO code and never grants anonymous movement
  assert.equal(check.result.durableObjectCode,'v16-preview-batched-input-v2');
  assert.equal(check.result.freeSeasonPreview,'free-season-v1');
  assert.equal(check.result.scoreAudit,'private-audit-v1');
+ assert.equal(check.result.journalIntegrity,'read-only-v1');
  const unknown=await t.call('A','preview/protocol',{x:1});
  assert.equal(unknown.status,405);
  const old=await t.call('A','preview/move',{dx:100,dy:0});
