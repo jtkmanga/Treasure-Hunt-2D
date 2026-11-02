@@ -82,3 +82,82 @@ export function readJournalPage(storage,beforeId=null,limit=40){
   throw err;
  }
 }
+
+/**
+ * Private read-only integrity report. This intentionally does not return UIDs,
+ * individual receipts, player names or tokens; it never mutates score/journal.
+ * It checks SQL continuity from the first archived award, the durable snapshot
+ * head, overlapping recent events and current-season player balances that have
+ * at least one archived award.
+ *
+ * The journal begins at its first insert; no historical backfill is implied.
+ */
+export function inspectJournalIntegrity(storage,snapshot,{limit=64}={}){
+ if(!snapshot||!Number.isSafeInteger(snapshot.auditNextId)||snapshot.auditNextId<1||
+  !Array.isArray(snapshot.auditEvents)||!Array.isArray(snapshot.scores)||
+  typeof snapshot.period!=='string')throw Error('Invalid journal integrity snapshot');
+ if(!Number.isInteger(limit)||limit<1||limit>100)
+  throw Error('Invalid journal integrity limit');
+ const base={schema:1,scope:snapshot.scope,period:snapshot.period,
+  snapshotVersion:snapshot.version,expectedNextId:snapshot.auditNextId,
+  archiveIsHistoricalBackfill:false};
+ if(!journalSupported(storage))
+  return {...base,status:'unavailable',reasons:['transactional-storage-unavailable']};
+ let stats;
+ try{
+  stats=[...storage.sql.exec(
+   `SELECT COUNT(*) AS count, MIN(event_id) AS firstId, MAX(event_id) AS lastId FROM ${TABLE}`
+  )][0];
+ }catch(error){
+  if(/no such table: v16_award_journal/i.test(String(error?.message||error)))
+   return {...base,status:'not-started',archivedCount:0,firstStoredId:null,lastStoredId:null,
+    recentCompared:0,currentScoresChecked:0,reasons:[]};
+  throw error;
+ }
+ if(!stats||!Number.isSafeInteger(stats.count)||stats.count<0)
+  throw Error('Invalid journal integrity aggregation');
+ if(stats.count===0)
+  return {...base,status:'not-started',archivedCount:0,firstStoredId:null,lastStoredId:null,
+   recentCompared:0,currentScoresChecked:0,reasons:[]};
+ const first=stats.firstId,last=stats.lastId,problems=new Set();
+ if(!Number.isSafeInteger(first)||!Number.isSafeInteger(last)||first<1||last<first)
+  throw Error('Invalid journal integrity IDs');
+ if(stats.count!==last-first+1)problems.add('archived-event-id-gap');
+ if(last!==snapshot.auditNextId-1)problems.add('journal-snapshot-head-mismatch');
+ const rows=[...storage.sql.exec(SELECT+
+  ' ORDER BY event_id DESC LIMIT ?',limit)];
+ if(rows.length!==Math.min(limit,stats.count))problems.add('archive-read-count-mismatch');
+ const byId=new Map(rows.map(row=>[row.id,row]));
+ let compared=0;
+ for(const recent of snapshot.auditEvents){
+  // Only compare entries that overlap the chosen, bounded SQL window.
+  const archive=byId.get(recent.id);
+  if(!archive)continue;
+  compared++;
+  for(const key of ['uid','scope','period','kind','coinId','amount','score','requestId','claimSeq','at']){
+   if((archive[key]??null)!==(recent[key]??null)){
+    problems.add('recent-audit-archive-mismatch');break;
+   }
+  }
+ }
+ const ascending=rows.slice().reverse(),seen=new Map();
+ for(const award of ascending){
+  const key=award.uid+'\x00'+award.period;
+  const previous=seen.get(key);
+  if(previous!==undefined&&previous+award.amount!==award.score)
+   problems.add('recent-award-score-chain-mismatch');
+  seen.set(key,award.score);
+ }
+ const current=new Map(snapshot.scores),latestCurrent=new Map();
+ for(const award of ascending)
+  if(award.period===snapshot.period)latestCurrent.set(award.uid,award.score);
+ let currentScoresChecked=0;
+ for(const [uid,score] of latestCurrent){
+  if(!current.has(uid)){problems.add('current-season-score-missing');continue;}
+  currentScoresChecked++;
+  if(current.get(uid)!==score)problems.add('current-season-score-divergence');
+ }
+ return {...base,status:problems.size?'mismatch':'ok',
+  archivedCount:stats.count,firstStoredId:first,lastStoredId:last,
+  recentCompared:compared,currentScoresChecked,reasons:[...problems].sort()};
+}
