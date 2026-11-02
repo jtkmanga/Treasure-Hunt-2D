@@ -9,7 +9,7 @@ import {BETA_LOGIN_PAGE} from './beta-login-page.mjs';
 import {GAME_PREVIEW_PAGE} from './game-preview-page.mjs';
 import {V16Room} from './room.mjs';
 import {periodFor} from './periods.mjs';
-import {journalSupported,persistGameState,readJournalPage,inspectJournalIntegrity} from './durable-score-journal.mjs';
+import {journalSupported,persistGameState,readJournalPage,inspectJournalIntegrity,inspectRecoveryReadiness} from './durable-score-journal.mjs';
 const SCOPES={free:'free1',vip:'vip1',free1:'free1',vip1:'vip1'};
 // Dedicated isolated DO; pilot claims NEVER affect Free Server ranking or coins.
 const PILOT_ROOM='free1-coin-race-pilot-v1';
@@ -183,12 +183,13 @@ export class V16WorldRoom {
       const before=req.headers.get('x-internal-audit-before');
       const journal=readJournalPage(this.state.storage,before===null?null:Number(before));
       const integrity=inspectJournalIntegrity(this.state.storage,this.room.save());
-      return json({ok:true,audit:this.room.auditView(40),journal,integrity});
+      const recovery=await inspectRecoveryReadiness(this.state.storage);
+      return json({ok:true,audit:this.room.auditView(40),journal,integrity,recovery});
      }catch{return json({error:'Score journal temporarily unavailable'},503)}
      
     }
     if(req.method==='GET'&&new URL(req.url).pathname==='/protocol')
-     return json({ok:true,movementProtocol:'Sync V16.26',durableObjectCode:'v16-preview-batched-input-v2',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',journalIntegrity:'read-only-v1',durableJournalSupported:journalSupported(this.state.storage)});
+     return json({ok:true,movementProtocol:'Sync V16.26',durableObjectCode:'v16-preview-batched-input-v2',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',journalIntegrity:'read-only-v1',durableJournalSupported:journalSupported(this.state.storage),pitrApiAvailable:typeof this.state.storage.getCurrentBookmark==='function'});
    // One alarm per room at the next Bangkok season boundary.
    if(this.state.storage.getAlarm&&this.state.storage.setAlarm&&await this.state.storage.getAlarm()===null)
     await this.state.storage.setAlarm(Date.parse(periodFor(scope,Date.now()).resetsAt));
