@@ -161,3 +161,19 @@ export function inspectJournalIntegrity(storage,snapshot,{limit=64}={}){
   archivedCount:stats.count,firstStoredId:first,lastStoredId:last,
   recentCompared:compared,currentScoresChecked,reasons:[...problems].sort()};
 }
+
+/**
+ * Non-destructive PITR capability check. It reads a current recovery bookmark
+ * but never returns that bookmark and never invokes any restore API. No claim
+ * of a separate offsite backup, tested restore, or >30-day retention.
+ */
+export async function inspectRecoveryReadiness(storage){
+ const report={pitrApiAvailable:typeof storage?.getCurrentBookmark==='function',
+  bookmarkVerified:false,bookmarkExposed:false,restoreTested:false,
+  separateBackupConfigured:false,retentionDays:30};
+ if(!report.pitrApiAvailable)return report;
+ try{
+  const bookmark=await storage.getCurrentBookmark();
+  return {...report,bookmarkVerified:typeof bookmark==='string'&&bookmark.length>0};
+ }catch{return report}
+}
