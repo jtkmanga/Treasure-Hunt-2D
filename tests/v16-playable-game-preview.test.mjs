@@ -91,6 +91,7 @@ test('private score audit endpoint is disabled by default and never serves unaut
 test('admin panel never enables itself without signed server permission',()=>{
  const page=BETA_LOGIN_PAGE;
  assert.ok(page.includes('id="adminAuditPanel" hidden'));
+ assert.ok(page.includes('const integrity=data.integrity'), 'Admin screen shows verified private consistency state');
  assert.ok(page.includes("res.status===401||res.status===403"));
  assert.ok(page.includes("el('adminAuditPanel').hidden=false"));
  assert.ok(page.includes("fetch('/api/v16/admin/audit?scope=free&room=preview'"));
@@ -206,6 +207,7 @@ test('preview protocol probes actual DO code and never grants anonymous movement
  assert.equal(check.result.durableObjectCode,'v16-preview-batched-input-v2');
  assert.equal(check.result.freeSeasonPreview,'free-season-v1');
  assert.equal(check.result.scoreAudit,'private-audit-v1');
+ assert.equal(check.result.journalIntegrity,'read-only-v1');
  const unknown=await t.call('A','preview/protocol',{x:1});
  assert.equal(unknown.status,405);
  const old=await t.call('A','preview/move',{dx:100,dy:0});
