@@ -9,6 +9,7 @@ import {BETA_LOGIN_PAGE} from './beta-login-page.mjs';
 import {GAME_PREVIEW_PAGE} from './game-preview-page.mjs';
 import {V16Room} from './room.mjs';
 import {periodFor} from './periods.mjs';
+import {journalSupported,persistGameState,readJournalPage} from './durable-score-journal.mjs';
 const SCOPES={free:'free1',vip:'vip1',free1:'free1',vip1:'vip1'};
 // Dedicated isolated DO; pilot claims NEVER affect Free Server ranking or coins.
 const PILOT_ROOM='free1-coin-race-pilot-v1';
@@ -49,7 +50,7 @@ export async function handleV16Request(req,env,testing={}){
    ...headers,
   }});
  }
- if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',movementProtocol:'Sync V16.26',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
+ if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',movementProtocol:'Sync V16.26',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
  // Staging-only read-only probe checks the *actual Durable Object code*.
  // The public Worker health marker alone cannot detect deferred DO upgrades.
  // A shared rate limit prevents this diagnostic from becoming an unbounded DO.
@@ -140,10 +141,14 @@ export async function handleV16Request(req,env,testing={}){
   // A Durable Object still running outdated code rejects these actions instead
   // of silently dispatching new move packets to the old axes-only handler.
   const action=auditRead?'admin-audit':(preview&&['join','move'].includes(route)?'preview-':pilot?'pilot-':'')+route;
+ const beforeIdParam=auditRead?url.searchParams.get('beforeId'):null;
+ if(beforeIdParam!==null&&(!/^[1-9][0-9]{0,14}$/.test(beforeIdParam)||
+   !Number.isSafeInteger(Number(beforeIdParam))))
+  return json({error:'Invalid journal cursor'},400,headers);
  const since=url.searchParams.get('since');
  if(read&&since!==null&&(!/^(0|[1-9][0-9]{0,14})$/.test(since)||!Number.isSafeInteger(Number(since))))
   return json({error:'Invalid version'},400,headers);
- const forwarded=new Request('https://internal/'+action,{method:read?'GET':'POST',headers:{'content-type':'application/json','x-internal-uid':uid||'','x-internal-scope':scope,'x-internal-preview':preview?'1':'0',...(auditRead?{'x-internal-admin-audit':'1'}:{}),...(read&&since!==null?{'x-world-since':since}:{})},body:read?undefined:JSON.stringify(input)});
+ const forwarded=new Request('https://internal/'+action,{method:read?'GET':'POST',headers:{'content-type':'application/json','x-internal-uid':uid||'','x-internal-scope':scope,'x-internal-preview':preview?'1':'0',...(auditRead?{'x-internal-admin-audit':'1',...(beforeIdParam!==null?{'x-internal-audit-before':beforeIdParam}:{})}:{}),...(read&&since!==null?{'x-world-since':since}:{})},body:read?undefined:JSON.stringify(input)});
  try{const response=await stub.fetch(forwarded);return json(await response.json(),response.status,headers)}catch{return json({error:'World temporarily unavailable'},503,headers)}
 }
 export default {fetch(req,env){return handleV16Request(req,env)}};
@@ -174,10 +179,15 @@ export class V16WorldRoom {
     if(req.method==='GET'&&new URL(req.url).pathname==='/admin-audit'){
      if(req.headers.get('x-internal-admin-audit')!=='1'||!req.headers.get('x-internal-uid'))
       return json({error:'Unauthorized admin audit'},403);
-     return json({ok:true,audit:this.room.auditView(40)});
+     try{
+      const before=req.headers.get('x-internal-audit-before');
+      const journal=readJournalPage(this.state.storage,before===null?null:Number(before));
+      return json({ok:true,audit:this.room.auditView(40),journal});
+     }catch{return json({error:'Score journal temporarily unavailable'},503)}
+     
     }
     if(req.method==='GET'&&new URL(req.url).pathname==='/protocol')
-     return json({ok:true,movementProtocol:'Sync V16.26',durableObjectCode:'v16-preview-batched-input-v2',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1'});
+     return json({ok:true,movementProtocol:'Sync V16.26',durableObjectCode:'v16-preview-batched-input-v2',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',durableJournalSupported:journalSupported(this.state.storage)});
    // One alarm per room at the next Bangkok season boundary.
    if(this.state.storage.getAlarm&&this.state.storage.setAlarm&&await this.state.storage.getAlarm()===null)
     await this.state.storage.setAlarm(Date.parse(periodFor(scope,Date.now()).resetsAt));
@@ -199,6 +209,7 @@ export class V16WorldRoom {
     }
     if(req.method!=='POST'||!uid)return json({error:'Unauthorized internal operation'},403);
     const body=await req.json();let result;
+    const priorAuditNext=this.room.auditNextId;
     // An acknowledged pickup must be durable. If a DO write fails, restore
     // the last persisted state before accepting another claim; otherwise a
     // transient storage error could leave scores/coins changed only in RAM.
@@ -231,7 +242,10 @@ export class V16WorldRoom {
     // Player positions are ephemeral: clients must join after a DO restart.
     if(action==='join'||action==='preview-join'||action==='collect'||action==='pilot-join'||action==='pilot-collect'){
      try {
-      await this.state.storage.put('v16-state',this.room.save());
+      const event=this.room.auditNextId>priorAuditNext?this.room.auditEvents.at(-1):null;
+      if(action==='collect'||action==='pilot-collect')
+       await persistGameState(this.state.storage,this.room.save(),event,{requireJournal:!!this.env?.ROOMS});
+      else await this.state.storage.put('v16-state',this.room.save());
      } catch {
       await this.reconcileStorage(scope,playerBefore);
       return json({error:'Persistent world storage unavailable'},503);
