@@ -91,8 +91,11 @@ test('coin claims, client event changes and zone DO fanout consume additional sh
   zoneDoCallsPerPlayerPerDay:2,
   existingAccountWorkerRequestsPerDay:1000,
   existingAccountDoRequestsPerDay:1000});
- assert.equal(r.quotaFailDays,30);
+ assert.equal(r.quotaFailDays,1,
+  'first-day 10K WebSocket handshakes push otherwise marginal traffic over Free');
+ assert.equal(r.earliestQuotaFailDay,1);
  assert.ok(r.firstDay.durableObjectRequestsLowerBound>FREE_DURABLE_REQUESTS_PER_DAY);
+ assert.ok(r.steadyDay.durableObjectRequestsLowerBound<FREE_DURABLE_REQUESTS_PER_DAY);
  assert.ok(r.billedWsDoRequestsPerDay>72_000);
  assert.equal(r.thirtyDayZeroCostProven,false);
 });
