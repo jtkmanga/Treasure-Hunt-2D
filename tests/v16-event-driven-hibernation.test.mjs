@@ -75,6 +75,20 @@ test('rate limit rejects message spam without modifying canonical player positio
  assert.equal(engine.consume('alice-verified',signedNonce,
   {type:'change',seq:2,axes:[0,100]},T+100).seq,2);
 });
+test('emergency stop after a just-started movement is immediate and replay-safe',()=>{
+ const {engine,room,p}=rig();
+ engine.consume('alice-verified',signedNonce,
+  {type:'start',seq:1,axes:[100,0]},T);
+ const result=engine.consume('alice-verified',signedNonce,
+  {type:'stop',seq:2},T+10);
+ assert.equal(result.moving,false);
+ assert.equal(result.seq,2);
+ const x=p.x,y=p.y;
+ assert.throws(()=>engine.consume('alice-verified',signedNonce,
+  {type:'stop',seq:3},T+20),/rate limited/);
+ assert.equal(p.x,x);assert.equal(p.y,y);
+ assert.equal(room.scores.get('alice-verified'),0);
+});
 test('missing heartbeat caps elapsed movement at 4 seconds and requires resync',()=>{
  const {engine,p,room}=rig();
  const x=p.x,y=p.y;
@@ -119,10 +133,11 @@ test('hibernation handler accepts direction-only frames, deduplicates, and never
  assert.equal(ws.sent[2].ok,false);
  assert.equal(ws.state.messages,1);
  await room.webSocketMessage(ws,'{"type":"stop","seq":2}');
- assert.equal(ws.sent.at(-1).ok,false,'immediate input must be rate limited');
- ws.setAt(Date.now()-500);
- await room.webSocketMessage(ws,'{"type":"stop","seq":2}');
- assert.equal(ws.sent.at(-1).moving,false);
+ assert.equal(ws.sent.at(-1).moving,false,
+  'a phone going into background must stop immediately');
+ await room.webSocketMessage(ws,'{"type":"stop","seq":3}');
+ assert.equal(ws.sent.at(-1).ok,false,
+  'repeated idle STOPs must still be rate limited');
  assert.equal(ws.state.seq,2);
  assert.ok(!JSON.stringify(ws.sent).includes('synthetic-actor-1'));
 });
