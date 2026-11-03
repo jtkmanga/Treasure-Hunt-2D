@@ -4,6 +4,7 @@ import {webcrypto} from 'node:crypto';
 import {ZonePresenceIndex,ZONE_VISIBILITY_CAP,ZONE_IDLE_TTL_MS} from '../src/v16-online/zone-presence.mjs';
 import {V16Room} from '../src/v16-online/room.mjs';
 import {V16WorldRoom,handleV16Request} from '../src/v16-online/worker.mjs';
+import {runZoneBenchmark} from '../scripts/v16-zone-capacity.mjs';
 if(!globalThis.crypto)globalThis.crypto=webcrypto;
 const NOW=Date.parse('2026-11-03T10:00:00Z');
 const BASE='https://treasure-hunt-2d-v16-world-staging.hjinffv5426.workers.dev';
@@ -176,4 +177,18 @@ test('preview-nearby requires verified Google/App Check and join, and is isolate
  assert.equal(unknown.status,404);
  const stored=JSON.stringify(t.instances.get('free1-forest-game-preview-v1').room.save());
  assert.ok(!stored.includes('avatar_'),'aliases are never stored in canonical score state');
+});
+
+test('offline zone benchmark checks 100 and 1000 updates without faking Cloudflare scale',()=>{
+ for(const n of [100,1000]){
+  const r=runZoneBenchmark({players:n,queries:60});
+  assert.equal(r.actors,n);
+  assert.equal(r.networkRequests,0);
+  assert.equal(r.verifiedRealConcurrentPlayers,0);
+  assert.equal(r.productionReadyConclusion,false);
+  assert.equal(r.queries,60);
+  assert.ok(r.crossZoneMigrations>0);
+  assert.ok(r.maxReturnedPlayers<=ZONE_VISIBILITY_CAP);
+  assert.ok(r.queryLatencyMs.p99>=r.queryLatencyMs.p50);
+ }
 });
