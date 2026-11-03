@@ -87,7 +87,8 @@ export async function handleV16Request(req,env,testing={}){
  const pitrDrill=url.pathname==='/api/v16/admin/pitr-drill';
  const auditRoom=url.searchParams.get('room')||'preview';
  // Explicit administrator-only POST; no recovery capability on any public URL.
- if(pitrDrill&&(scope!=='free1'||env.ENABLE_V16_RECOVERY_DRILL!=='true'))
+ if(pitrDrill&&(scope!=='free1'||env.ENABLE_V16_ADMIN_READS!=='true'||
+  env.ENABLE_V16_RECOVERY_DRILL!=='true'))
   return json({error:'Isolated recovery drill disabled'},403,headers);
  if(auditRead&&(!['preview','free'].includes(auditRoom)||scope!=='free1'))
   return json({error:'Invalid audit room'},400,headers);
