@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {webcrypto} from 'node:crypto';
-import {handleCanaryRequest,V16CanaryCoordinator,V16PresenceZone}
+import {handleCanaryRequest,V16CanaryCoordinator,V16PresenceZone,
+ MAX_PARALLEL_CANARY_ZONE_REQUESTS,boundedCanaryFanout}
  from '../src/v16-canary/worker.mjs';
 if(!globalThis.crypto)globalThis.crypto=webcrypto;
 const TOKEN='C'.repeat(48);
@@ -32,6 +33,7 @@ function rig({enabled=true,failZone=false}={}){
   }
  };
  const env={CANARY_ENABLED:enabled?'true':'false',
+  CANARY_BILLING_REVIEWED:'true',
   CANARY_RUN_TOKEN:TOKEN,CANARY_GATE:gateBinding};
  async function call(actors=2,reads=2,token=TOKEN){
   const res=await handleCanaryRequest(new Request(URL,{method:'POST',
@@ -138,4 +140,49 @@ test('invalid direct coordinator call and non-internal headers cannot run test D
  const r=await co.fetch(new Request('https://internal/run',{method:'POST',body:'{"actors":1,"reads":1}'}));
  assert.equal(r.status,403);
  assert.equal(count,0);
+});
+
+test('billing preflight gate blocks even valid token and enabled Canary',async()=>{
+ const r=rig();
+ r.env.CANARY_BILLING_REVIEWED='false';
+ const denied=await r.call(2,1);
+ assert.equal(denied.status,403);
+ assert.equal(denied.data.error,'Cloudflare billing review is not complete');
+ assert.equal(r.counters.zoneRequests,0);
+ assert.equal(r.counters.gateInvocations,0);
+ const health=await handleCanaryRequest(new Request('https://synthetic-zone-canary.example/health'),r.env);
+ assert.equal((await health.json()).enabled,false);
+});
+test('nine-zone queries are sent in four-connection batches, never nine at once',async()=>{
+ assert.equal(MAX_PARALLEL_CANARY_ZONE_REQUESTS,4);
+ const {zoneNamesAround}=await import('../src/v16-online/zone-shards.mjs');
+ const names=zoneNamesAround(55,55);
+ assert.equal(names.length,9);
+ let inflight=0,peak=0,count=0;
+ const fakeTransport={async send(name,path,viewer){
+  inflight++;peak=Math.max(peak,inflight);count++;
+  try{
+   assert.equal(path,'/zone/nearby');
+   assert.deepEqual(viewer,{x:55,y:55});
+   await new Promise(resolve=>setTimeout(resolve,10));
+   return {ok:true,records:[]};
+  }finally{inflight--}
+ }};
+ const data=await boundedCanaryFanout(fakeTransport,names,{x:55,y:55});
+ assert.equal(data.length,9);
+ assert.equal(count,9);
+ assert.equal(peak,4,'must leave headroom below 6 Cloudflare outgoing connections');
+ assert.equal(inflight,0);
+});
+test('canary stops creating new DO requests after a failed batch',async()=>{
+ let calls=0;
+ const names=Array.from({length:9},(_,i)=>'v16-preview-zone-v1-x'+i+'y5');
+ const fake={async send(){
+  calls++;
+  if(calls===1)throw Error('Synthetic shard failure');
+  await new Promise(resolve=>setTimeout(resolve,10));
+  return {ok:true,records:[]};
+ }};
+ await assert.rejects(()=>boundedCanaryFanout(fake,names,{x:55,y:55}),/Synthetic shard failure/);
+ assert.ok(calls<=4,'no second batch can start after failure');
 });

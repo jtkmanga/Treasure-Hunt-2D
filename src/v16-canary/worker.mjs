@@ -13,6 +13,8 @@ const RUN_LIMIT=3;
 const CALL_LIMIT=300;
 const MAX_PER_RUN=75;
 const TIMEOUT_MS=750;
+// Leave headroom under Cloudflare's six simultaneous outgoing connections per request.
+export const MAX_PARALLEL_CANARY_ZONE_REQUESTS=4;
 const bounded=(n,min,max)=>Number.isSafeInteger(n)&&n>=min&&n<=max;
 const json=(value,status=200)=>new Response(JSON.stringify(value),{
  status,headers:{'content-type':'application/json','cache-control':'no-store',
@@ -38,6 +40,20 @@ function validRequest(value,internal=false){
  if(budget>MAX_PER_RUN||(internal&&value.budget!==budget))return null;
  return {actors,reads,budget};
 }
+// Keep actual simultaneous DO requests below Workers' outgoing-connection cap.
+// Fail closed if a batch rejects. Never start a later batch after failure.
+export async function boundedCanaryFanout(transport,names,viewer){
+ if(!Array.isArray(names)||names.length<1||names.length>ZONE_MAX_FANOUT)
+  throw Error('Invalid fanout');
+ const records=[];
+ for(let i=0;i<names.length;i+=MAX_PARALLEL_CANARY_ZONE_REQUESTS){
+  const chunk=names.slice(i,i+MAX_PARALLEL_CANARY_ZONE_REQUESTS);
+  const part=await Promise.all(chunk.map(name=>
+   transport.send(name,'/zone/nearby',viewer)));
+  records.push(...part);
+ }
+ return records;
+}
 function stagePayload(uid,alias,at,seq,x,y){
  return {uid,alias,at,seq,epoch:'canary-session-20261103',x,y};
 }
@@ -45,11 +61,15 @@ export async function handleCanaryRequest(req,env){
  const path=new URL(req.url).pathname;
  if(path==='/health'&&req.method==='GET')
   return json({ok:true,service:'isolated-zone-canary-v1',
-   enabled:env.CANARY_ENABLED==='true',publicGame:false});
+   enabled:env.CANARY_ENABLED==='true'&&env.CANARY_BILLING_REVIEWED==='true',publicGame:false});
  if(path!=='/run')return json({error:'Not found'},404);
  if(req.method!=='POST')return json({error:'Method not allowed'},405);
  // All costly Durable Object requests are prohibited unless explicitly enabled.
  if(env.CANARY_ENABLED!=='true')return json({error:'Canary disabled'},403);
+ // A second independent gate prevents opening even a capped DO canary until
+ // the owner has verified the account's billing plan and spend guard.
+ if(env.CANARY_BILLING_REVIEWED!=='true')
+  return json({error:'Cloudflare billing review is not complete'},403);
  const token=/^Bearer ([A-Za-z0-9_-]{32,128})$/.exec(
   req.headers.get('authorization')||'');
  if(!secretMatches(token?.[1],env.CANARY_RUN_TOKEN))
@@ -114,7 +134,7 @@ export class V16CanaryCoordinator{
      const old={x:9.4+i*0.01,y:9.6},next={x:10.2+i*0.01,y:9.6};
      const at=Date.now();
      const initial=stagePayload(uid,alias,at,1,old.x,old.y);
-     const updated=stagePayload(uid,alias,at+1,2,next.x,next.y);
+     const updated=stagePayload(uid,alias,Math.max(at,Date.now()),2,next.x,next.y);
      const oldZone=zoneName(old.x,old.y),newZone=zoneName(next.x,next.y);
      phase='upsert-old';
      await transport.send(oldZone,'/zone/upsert',initial);
@@ -130,8 +150,7 @@ export class V16CanaryCoordinator{
      const viewer={x:10.25,y:9.6};
      const zones=zoneNamesAround(viewer.x,viewer.y);
      if(zones.length>ZONE_MAX_FANOUT)throw Error('Invalid fanout');
-     const values=await Promise.all(zones.map(name=>
-      transport.send(name,'/zone/nearby',viewer)));
+     const values=await boundedCanaryFanout(transport,zones,viewer);
      for(const result of values){
       if(!Array.isArray(result.records)||result.records.length>24)
        throw Error('Unbounded shard records');

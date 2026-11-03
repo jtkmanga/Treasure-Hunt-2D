@@ -33,7 +33,7 @@ jobs:
         run: node --test tests/v16-isolated-zone-canary.test.mjs tests/v16-zone-transport.test.mjs tests/v16-cross-do-shards.test.mjs
       - name: Verify disabled-by-default config and no main Worker alias
         run: |
-          node --input-type=module -e "import fs from 'node:fs';const x=JSON.parse(fs.readFileSync('wrangler.v16-zone-canary.jsonc','utf8'));if(x.name!=='treasure-hunt-2d-zone-canary-isolated'||x.vars.CANARY_ENABLED!=='false'||x.durable_objects.bindings.some(y=>y.name==='ROOMS'||y.class_name==='V16WorldRoom')||x.migrations.length!==1)process.exit(1);console.log('Isolated canary: default OFF, dedicated SQLite classes, no live game binding')"
+          node --input-type=module -e "import fs from 'node:fs';const x=JSON.parse(fs.readFileSync('wrangler.v16-zone-canary.jsonc','utf8'));if(x.name!=='treasure-hunt-2d-zone-canary-isolated'||x.vars.CANARY_ENABLED!=='false'||x.vars.CANARY_BILLING_REVIEWED!=='false'||x.durable_objects.bindings.some(y=>y.name==='ROOMS'||y.class_name==='V16WorldRoom')||x.migrations.length!==1)process.exit(1);console.log('Isolated canary: default OFF, dedicated SQLite classes, no live game binding')"
       - name: Wrangler canary dry-run (no deploy, no Cloudflare secrets)
         run: npx --yes wrangler@4 deploy --config wrangler.v16-zone-canary.jsonc --dry-run --outdir /tmp/v16-zone-canary-compile
       - name: Job summary
@@ -41,6 +41,6 @@ jobs:
           echo '## Isolated Zone Canary — Preflight Only' >> "$GITHUB_STEP_SUMMARY"
           echo '' >> "$GITHUB_STEP_SUMMARY"
           echo '- No Cloudflare API token, Worker deployment or DO invocation is used.' >> "$GITHUB_STEP_SUMMARY"
-          echo '- Configuration starts with CANARY_ENABLED=false and has distinct namespace classes.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Configuration starts with CANARY_ENABLED=false and CANARY_BILLING_REVIEWED=false, with distinct namespace classes.' >> "$GITHUB_STEP_SUMMARY"
           echo '- A real on-platform canary requires a separate operator cost/secret/rollback review.' >> "$GITHUB_STEP_SUMMARY"
           echo '- Real online 10K concurrent players verified: **0**.' >> "$GITHUB_STEP_SUMMARY"
