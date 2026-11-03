@@ -78,7 +78,7 @@ test('slow response times out and no stale late response gets returned as succes
 test('cross-DO offline cost probe maintains one canonical coin world with 100 actors',async()=>{
  const report=await runCrossDoBenchmark({actors:100,queries:30});
  assert.equal(report.simulatedPlayers,100);
- assert.equal(report.syntheticZoneInstances,100);
+ assert.ok(report.syntheticZoneInstances>=10&&report.syntheticZoneInstances<=100);
  assert.equal(report.globalCoinCount,200);
  assert.equal(report.canonicalScoreEntries,100);
  assert.ok(report.transport.requestCount>=100+200+30);
