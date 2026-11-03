@@ -8,6 +8,8 @@ import {verifyFirebaseLiveAccount} from './live-account.mjs';
 import {BETA_LOGIN_PAGE} from './beta-login-page.mjs';
 import {GAME_PREVIEW_PAGE} from './game-preview-page.mjs';
 import {V16Room} from './room.mjs';
+import {V16ZoneRouter,V16PresenceZone} from './zone-shards.mjs';
+export {V16PresenceZone};
 import {periodFor} from './periods.mjs';
 import {journalSupported,persistGameState,readJournalPage,inspectJournalIntegrity,inspectRecoveryReadiness} from './durable-score-journal.mjs';
 import {runIsolatedPitrDrill,isolatedPitrDo} from './isolated-pitr-drill.mjs';
@@ -100,11 +102,16 @@ export async function handleV16Request(req,env,testing={}){
     typeof env.V16_ADMIN_EMAIL==='string'&&env.V16_ADMIN_EMAIL)))
   return json({error:'Admin audit unavailable'},403,headers);
  const pilotMatch=/^\/api\/v16\/pilot\/(world|join|collect)$/.exec(url.pathname);
- const previewMatch=/^\/api\/v16\/preview\/(world|join|move|collect|nearby)$/.exec(url.pathname);
+ const previewMatch=/^\/api\/v16\/preview\/(world|join|move|collect|nearby|shard-sync|shard-nearby)$/.exec(url.pathname);
  const pilot=!!pilotMatch,preview=!!previewMatch;
+ // Separate DO experiment, OFF by default and never called from mobile gameplay.
+ if(preview&&previewMatch[1].startsWith('shard-')&&
+  (scope!=='free1'||env.ENABLE_V16_ZONE_SHARDS!=='true'||
+   !env.ZONE_ROOMS?.get||!env.ZONE_ROOMS?.idFromName))
+  return json({error:'Sharded presence experiment disabled'},403,headers);
  if(!pilot&&!preview&&!auditRead&&!roleRoute&&!pitrDrill&&!['/api/v16/auth-check','/api/v16/world','/api/v16/join','/api/v16/move','/api/v16/collect'].includes(url.pathname))return json({error:'Not found'},404,headers);
  const authCheck=url.pathname==='/api/v16/auth-check';
- const read=auditRead||adminStatus||url.pathname==='/api/v16/world'||(pilot&&pilotMatch[1]==='world')||(preview&&['world','nearby'].includes(previewMatch[1]));
+ const read=auditRead||adminStatus||url.pathname==='/api/v16/world'||(pilot&&pilotMatch[1]==='world')||(preview&&['world','nearby','shard-nearby'].includes(previewMatch[1]));
  if(req.method!==((read||authCheck)?'GET':'POST'))return json({error:'Method not allowed'},405,headers);
  // Pilot runs in an entirely separate DO with its own, non-public scores.
  // Never loosen the production Free-world write gate for a beta experiment.
@@ -151,7 +158,11 @@ export async function handleV16Request(req,env,testing={}){
    if(person?.uid!==uid||person.disabled!==false||person.revoked!==false)
     return json({error:'Account not permitted'},403,headers);
    if(scope==='vip1')return json({error:'VIP verification pending'},403,headers);
-   if(!read&&!authCheck&&!adminEnroll&&!pitrDrill)input=await bodyJSON(req);
+   if(!read&&!authCheck&&!adminEnroll&&!pitrDrill){
+      input=await bodyJSON(req);
+      if(preview&&previewMatch[1]==='shard-sync'&&Object.keys(input).length!==0)
+       return json({error:'Shard sync does not accept client position or identifiers'},400,headers);
+     }
   }catch{return json({error:'Authentication, App Check or account validation failed'},401,headers);}
  }
  // Admin enrollment is a separate, non-score action. The caller must have
@@ -193,7 +204,7 @@ export async function handleV16Request(req,env,testing={}){
   // Use explicit preview actions: never fall through to the legacy Free/VIP move.
   // A Durable Object still running outdated code rejects these actions instead
   // of silently dispatching new move packets to the old axes-only handler.
-  const action=auditRead?'admin-audit':(preview&&['join','move','nearby'].includes(route)?'preview-':pilot?'pilot-':'')+route;
+  const action=auditRead?'admin-audit':(preview&&['join','move','nearby','shard-sync','shard-nearby'].includes(route)?'preview-':pilot?'pilot-':'')+route;
  const beforeIdParam=auditRead?url.searchParams.get('beforeId'):null;
  if(beforeIdParam!==null&&(!/^[1-9][0-9]{0,14}$/.test(beforeIdParam)||
    !Number.isSafeInteger(Number(beforeIdParam))))
@@ -222,7 +233,7 @@ export async function handleV16Request(req,env,testing={}){
 }
 export default {fetch(req,env){return handleV16Request(req,env)}};
 export class V16WorldRoom {
- constructor(state,env){this.state=state;this.env=env;this.room=null;this.queue=Promise.resolve();
+ constructor(state,env){this.state=state;this.env=env;this.room=null;this.queue=Promise.resolve();this.zoneRouter=null;
   state.blockConcurrencyWhile(async()=>{
    const saved=await state.storage.get('v16-state');
    this.room=saved?V16Room.restore(saved):null;
@@ -287,6 +298,22 @@ export class V16WorldRoom {
     await this.state.storage.setAlarm(Date.parse(periodFor(scope,Date.now()).resetsAt));
    const uid=req.headers.get('x-internal-uid');const now=Date.now();const action=new URL(req.url).pathname.slice(1);
    try{
+    if(action==='preview-shard-nearby'||action==='preview-shard-sync'){
+     if(!uid||req.headers.get('x-internal-preview')!=='1'||
+      req.method!==(action==='preview-shard-nearby'?'GET':'POST')||
+      this.env?.ENABLE_V16_ZONE_SHARDS!=='true'||!this.env?.ZONE_ROOMS)
+      return json({error:'Sharded preview unavailable'},403);
+     try{
+      this.room.requirePlayer(uid);
+      this.zoneRouter??=new V16ZoneRouter(this.env.ZONE_ROOMS);
+      if(action==='preview-shard-sync'){
+       const synchronized=await this.zoneRouter.sync(this.room,uid);
+       return json({ok:true,synchronized});
+      }
+      const nearby=await this.zoneRouter.nearby(this.room,uid,now);
+      return json({ok:true,nearby});
+     }catch{return json({error:'Sharded presence sync temporarily unavailable'},503)}
+    }
     if(action==='preview-nearby'){
      if(req.method!=='GET'||!uid||req.headers.get('x-internal-preview')!=='1')
       return json({error:'Unauthorized nearby request'},403);
