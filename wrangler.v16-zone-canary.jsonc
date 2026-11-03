@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "treasure-hunt-2d-zone-canary-isolated",
+  "main": "./src/v16-canary/worker.mjs",
+  "compatibility_date": "2026-11-03",
+  "workers_dev": true,
+  "vars": {
+    "CANARY_ENABLED": "false"
+  },
+  "durable_objects": {
+    "bindings": [
+      {"name": "ZONE_ROOMS", "class_name": "V16PresenceZone"},
+      {"name": "CANARY_GATE", "class_name": "V16CanaryCoordinator"}
+    ]
+  },
+  "migrations": [
+    {"tag": "v1-canary-only", "new_sqlite_classes": [
+      "V16PresenceZone", "V16CanaryCoordinator"
+    ]}
+  ]
+}
