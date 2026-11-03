@@ -6,6 +6,7 @@
   "workers_dev": true,
   "vars": {
     "ENABLE_V16_WRITES": "false",
+    "ENABLE_V16_ZONE_SHARDS": "false",
     "ENABLE_V16_RECOVERY_DRILL": "false",
     "ENABLE_V16_ADMIN_READS": "false",
     "ENABLE_V16_ADMIN_ENROLL": "false",
@@ -18,6 +19,12 @@
     "FIREBASE_APP_ID": "1:439998873632:web:4b694f8159d9d9e0163c45"
   },
   "ratelimits": [{"name": "V16_RATE_LIMITER", "namespace_id": "163101", "simple": {"limit": 360, "period": 60}}],
-  "durable_objects": {"bindings": [{"name": "ROOMS", "class_name": "V16WorldRoom"}], "code_update_strategy": {"mode": "immediate"}},
-  "migrations": [{"tag":"v1", "new_sqlite_classes": ["V16WorldRoom"]}]
+  "durable_objects": {"bindings": [
+    {"name": "ROOMS", "class_name": "V16WorldRoom"},
+    {"name": "ZONE_ROOMS", "class_name": "V16PresenceZone"}
+  ], "code_update_strategy": {"mode": "immediate"}},
+  "migrations": [
+    {"tag":"v1", "new_sqlite_classes": ["V16WorldRoom"]},
+    {"tag":"v2-zone-presence", "new_sqlite_classes": ["V16PresenceZone"]}
+  ]
 }
