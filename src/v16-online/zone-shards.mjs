@@ -2,6 +2,7 @@
 // No reward/score writes. Not enabled on the existing running game.
 import {ZONE_WORLD_SIZE,ZONE_CELL_SIZE,ZONE_VISIBILITY_CAP,
  ZONE_VISIBILITY_RADIUS,ZONE_IDLE_TTL_MS} from './zone-presence.mjs';
+import {ZoneTransport,ZONE_MAX_FANOUT} from './zone-transport.mjs';
 
 const PREFIX='v16-preview-zone-v1-x';
 const INTERNAL_HEADER='x-v16-zone-internal';
@@ -119,12 +120,6 @@ export class V16PresenceZone {
   return next;
  }
 }
-function post(stub,path,payload){
- return stub.fetch(new Request('https://zone-internal'+path,{
-  method:'POST',headers:{[INTERNAL_HEADER]:'1','content-type':'application/json'},
-  body:JSON.stringify(payload)
- }));
-}
 function verifiedProfile(room,uid){
  const p=room.requirePlayer(uid);
  if(!validPoint(p.x,p.y)||!validAt(p.lastAt)||
@@ -135,18 +130,13 @@ function verifiedProfile(room,uid){
 // Canonical V16Room remains the sole owner of movement/coin/scores.
 // This router only projects authoritative presence into separate zone DOs.
 export class V16ZoneRouter {
- constructor(namespace){
-  if(!namespace?.get||!namespace?.idFromName)
-   throw new Error('Zone Durable Object binding missing');
-  this.namespace=namespace;this.published=new Map();this.aliases=new Map();
+ constructor(namespace,{timeoutMs}={}){
+  this.transport=new ZoneTransport(namespace,{timeoutMs});
+  this.published=new Map();this.aliases=new Map();
  }
- _stub(name){return this.namespace.get(this.namespace.idFromName(name))}
+ report(){return this.transport.report()}
  async _send(name,path,payload){
-  const response=await post(this._stub(name),path,payload);
-  let data;
-  try{data=await response.json()}catch{throw new Error('Zone shard unavailable')}
-  if(!response.ok||data.ok!==true)throw new Error('Zone shard rejected update');
-  return data;
+  return this.transport.send(name,path,payload);
  }
  async sync(room,uid){
   const profile=verifiedProfile(room,uid);
@@ -172,6 +162,9 @@ export class V16ZoneRouter {
   if(now-viewer.at>=ZONE_IDLE_TTL_MS)
    return {players:[],viewerActive:false,radius:ZONE_VISIBILITY_RADIUS};
   const names=zoneNamesAround(viewer.x,viewer.y);
+  if(names.length>ZONE_MAX_FANOUT)throw new Error('Zone fan-out budget exceeded');
+  // A slow/unavailable shard fails this one proximity read; never fabricate
+  // or serve stale player coordinates as authoritative.
   const pages=await Promise.all(names.map(name=>this._send(name,'/zone/nearby',{
    x:viewer.x,y:viewer.y})));
   const valid=[],seen=new Set(),r2=ZONE_VISIBILITY_RADIUS**2;
