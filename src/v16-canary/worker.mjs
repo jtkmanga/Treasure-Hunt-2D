@@ -26,15 +26,16 @@ function secretMatches(received,expected){
   mismatch|=(received.charCodeAt(i)||0)^expected.charCodeAt(i);
  return mismatch===0;
 }
-function validRequest(value){
+function validRequest(value,internal=false){
  if(value===null||typeof value!=='object'||Array.isArray(value))
   return null;
  const keys=Object.keys(value);
- if(keys.some(k=>k!=='actors'&&k!=='reads'))return null;
+ if(keys.some(k=>k!=='actors'&&k!=='reads'&&!(internal&&k==='budget')))
+  return null;
  const actors=value.actors,reads=value.reads;
  if(!bounded(actors,1,10)||!bounded(reads,1,5))return null;
  const budget=actors*3+reads*ZONE_MAX_FANOUT;
- if(budget>MAX_PER_RUN)return null;
+ if(budget>MAX_PER_RUN||(internal&&value.budget!==budget))return null;
  return {actors,reads,budget};
 }
 function stagePayload(uid,alias,at,seq,x,y){
@@ -90,7 +91,7 @@ export class V16CanaryCoordinator{
    return json({error:'Internal canary only'},403);
   const task=async()=>{
    let plan;
-   try{plan=validRequest(await req.json())}catch{return json({error:'Bad canary plan'},400)}
+   try{plan=validRequest(await req.json(),true)}catch{return json({error:'Bad canary plan'},400)}
    if(!plan)return json({error:'Bad canary plan'},400);
    if(!this.env.ZONE_ROOMS?.get||!this.env.ZONE_ROOMS?.idFromName)
     return json({error:'Canary zone binding unavailable'},503);
