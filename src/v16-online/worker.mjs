@@ -202,7 +202,9 @@ export async function handleV16Request(req,env,testing={}){
  if(read&&since!==null&&(!/^(0|[1-9][0-9]{0,14})$/.test(since)||!Number.isSafeInteger(Number(since))))
   return json({error:'Invalid version'},400,headers);
  const forwarded=new Request('https://internal/'+action,{method:read?'GET':'POST',headers:{'content-type':'application/json','x-internal-uid':uid||'','x-internal-scope':scope,'x-internal-preview':preview?'1':'0',...(auditRead?{'x-internal-admin-audit':'1',...(beforeIdParam!==null?{'x-internal-audit-before':beforeIdParam}:{})}:{}),...(read&&since!==null?{'x-world-since':since}:{})},body:read?undefined:JSON.stringify(input)});
- try{const response=await stub.fetch(forwarded);return json(await response.json(),response.status,headers)}catch{return json({error:'World temporarily unavailable'},503,headers)}
+ try{const response=await stub.fetch(forwarded);const result=await response.json();
+  if(auditRead&&response.ok)result.syntheticDrillAvailable=env.ENABLE_V16_RECOVERY_DRILL==='true';
+  return json(result,response.status,headers)}catch{return json({error:'World temporarily unavailable'},503,headers)}
 }
 export default {fetch(req,env){return handleV16Request(req,env)}};
 export class V16WorldRoom {
