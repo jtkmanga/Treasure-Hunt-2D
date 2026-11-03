@@ -81,6 +81,44 @@ test('synthetic isolated PITR restores SQL and KV together and creates a durable
  assert.equal(repeat.result.previouslyPassed,true);
  assert.equal(lab.getRestoreCalls(),1,'repeat must not trigger second restore');
 });
+test('synthetic status is read-only and never interprets baseline alone as successful restore',async()=>{
+ const lab=syntheticStorage();
+ const req=action=>new Request('https://internal/pitr/'+action,{
+  method:'POST',headers:{'x-internal-pitr-drill':'1'}
+ });
+ const status=async()=>{const result=await isolatedPitrDo(req('status'),lab.state);assert.equal(result.status,200);return result.json()};
+ const before=lab.getSnapshot();
+ assert.equal((await status()).status,'not-started');
+ assert.deepEqual(lab.getSnapshot(),before,'status never creates SQL or KV');
+ assert.equal((await isolatedPitrDo(req('prepare'),lab.state)).status,200);
+ const baseline=await status();
+ assert.equal(baseline.status,'baseline-unverified');
+ assert.equal(baseline.verifiedRestore,false);
+ assert.equal(baseline.sqlScore,123);
+ assert.equal(baseline.kvScore,123);
+ assert.equal((await isolatedPitrDo(req('mutate'),lab.state)).status,200);
+ const mutated=await status();
+ assert.equal(mutated.status,'changed-unverified');
+ assert.equal(mutated.sqlScore,987);
+ assert.equal(mutated.kvScore,987);
+ // A failed or interrupted run must not incorrectly show a green state.
+ assert.equal(mutated.verifiedRestore,false);
+});
+test('private synthetic status confirms completion only when a success marker survives restore',async()=>{
+ const lab=syntheticStorage(),env=envFor(lab);
+ const outcome=await runIsolatedPitrDrill(env);
+ assert.equal(outcome.status,200);
+ const status=await isolatedPitrDo(new Request('https://internal/pitr/status',{
+  method:'POST',headers:{'x-internal-pitr-drill':'1'}
+ }),lab.state);
+ const result=await status.json();
+ assert.equal(result.ok,true);
+ assert.equal(result.status,'completed');
+ assert.equal(result.verifiedRestore,true);
+ assert.equal(result.sqlScore,123);
+ assert.equal(result.kvScore,123);
+ assert.equal(result.sqlAndKvConsistent,true);
+});
 test('recovery drill refuses any non-synthetic DO name and unsupported methods',async()=>{
  const lab=syntheticStorage();
  lab.state.id.name='free1-forest-game-preview-v1';

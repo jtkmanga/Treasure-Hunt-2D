@@ -178,6 +178,22 @@ test('admin panel never enables itself without signed server permission',()=>{
  const page=BETA_LOGIN_PAGE;
  assert.ok(page.includes('id="adminAuditPanel" hidden'));
  assert.ok(page.includes('id="pitrDrillSection" hidden'),'recovery UI hidden until verified Admin Audit');
+ assert.ok(page.includes('const diagnostic=data.syntheticDrillStatus'),
+  'Admin must show read-only synthetic SQL+KV status');
+ assert.ok(page.includes('baseline-unverified'),
+  'baseline without certificate cannot be presented as a successful PITR');
+ assert.ok(page.includes('appCheck/throttled'),
+  'App Check cooldown must have a clear Thai explanation');
+ assert.ok(page.includes('requestWasSent'),
+  'client must distinguish request not sent from uncertain server outcome');
+ const startPreflight=page.indexOf("el('pitrDrillButton').addEventListener('click'");
+ const preflightBlock=page.slice(startPreflight,page.indexOf('// Only the verified admin role',startPreflight));
+ assert.ok(preflightBlock.indexOf('getToken(appCheck)')<preflightBlock.indexOf('window.confirm('),
+  'App Check token must be validated BEFORE a restore confirmation is shown');
+ assert.ok(preflightBlock.includes('result.error'), 'server-side failure reason must be displayed');
+ assert.ok(preflightBlock.includes('pitrAppCheckThrottled=true'),
+  'repeat click must not retrigger a throttled attestation');
+
  assert.ok(page.includes('pitrDrillButton'),'recovery requires owner click');
  assert.ok(page.includes("window.confirm("),'recovery requires explicit confirmation');
  assert.ok(page.includes("fetch('/api/v16/admin/pitr-drill?scope=free'"),'recovery never calls unauthenticated public endpoint');
