@@ -1,0 +1,57 @@
+name: V16 Event-driven Multiplayer + Hibernation Preflight (No Deploy)
+
+on:
+  pull_request:
+    paths:
+      - 'src/v16-online/event-input.mjs'
+      - 'src/v16-online/event-mobile-input.mjs'
+      - 'src/v16-online/hibernating-event-probe.mjs'
+      - 'src/v16-event-probe/**'
+      - 'scripts/v16-realtime-budget-model.mjs'
+      - 'tests/v16-event-driven-hibernation.test.mjs'
+      - 'tests/v16-event-mobile-gateway.test.mjs'
+      - 'wrangler.v16-event-probe.jsonc'
+      - '.github/workflows/v16-event-hibernation.yml'
+      - 'package.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v16-event-hibernation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  event-hibernation:
+    name: Signed movement simulation + isolated DO dry-run
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify event protocol, server collision safety and no live access
+        run: npm run test:realtime
+      - name: Confirm isolated Worker and both safety flags OFF
+        run: |
+          node --input-type=module -e "import fs from 'node:fs';const c=JSON.parse(fs.readFileSync('wrangler.v16-event-probe.jsonc','utf8'));if(c.name!=='treasure-hunt-2d-event-probe-isolated'||c.vars.EVENT_PROBE_ENABLED!=='false'||c.vars.EVENT_PROBE_BILLING_REVIEWED!=='false'||c.durable_objects.bindings.length!==1||c.durable_objects.bindings[0].name!=='EVENT_PROBE_ROOMS'||c.durable_objects.bindings.some(b=>b.name==='ROOMS'||b.name==='ZONE_ROOMS'||b.class_name==='V16WorldRoom'))process.exit(1);console.log('Standalone probe default OFF. No real game room binding.')"
+      - name: Simulate 10K message-only cost (NOT Cloudflare bill)
+        run: |
+          node scripts/v16-realtime-budget-model.mjs > v16-message-cost-scenarios.json
+          node --input-type=module -e "import fs from 'node:fs';const d=JSON.parse(fs.readFileSync('v16-message-cost-scenarios.json','utf8'));if(!d.estimateNotActualBill||d.scenarios.length!==5||d.scenarios.some(s=>s.completeMonthlyBillKnown!==false||s.underTenDollarTotalProven!==false||s.realAuthenticatedConcurrencyTested!==0))process.exit(1);console.log('Message-only estimates:',d.scenarios.map(s=>({movingFraction:s.movingFraction,minimumUSD:s.basePlusIncomingMessageRequestsUSD})))"
+      - name: Wrangler isolate probe dry-run (NO DEPLOY)
+        run: npx --yes wrangler@4 deploy --config wrangler.v16-event-probe.jsonc --dry-run --outdir /tmp/v16-event-ws-probe-compile
+      - name: Append outcome summary
+        run: |
+          echo '## Event-driven + Hibernation WebSocket Preflight' >> "$GITHUB_STEP_SUMMARY"
+          echo '- No Cloudflare deploy, real users, real gameplay API, or billing action.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Probe has isolated DO and dual flags disabled by default.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- 10K user cost scenario covers incoming messages only, not complete charges.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Real signed 10K concurrent users verified: **0**.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload message-only scenario report
+        uses: actions/upload-artifact@v4
+        with:
+          name: v16-event-10k-cost-envelope
+          path: v16-message-cost-scenarios.json
+          retention-days: 7
