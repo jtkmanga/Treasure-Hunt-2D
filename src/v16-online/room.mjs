@@ -3,6 +3,7 @@
 import {makeForestMapV17} from './forest-map-v17.mjs';
 import {periodFor} from './periods.mjs';
 import {IncrementalLeaderboard} from './incremental-leaderboard.mjs';
+import {ZonePresenceIndex} from './zone-presence.mjs';
 export const WORLD_VERSION='v16-forest-100';
 export const COIN_RESPAWN_MS=60_000;
 export const CHEST_RESPAWN_MS=4*60*60_000;
@@ -33,7 +34,7 @@ export class V16Room {
   // Index is derived, never persisted; canonical Maps retain existing schema.
   this.ranking=new IncrementalLeaderboard([],[],publicNickname);
   this.scores=this.ranking.scores;this.names=this.ranking.names;
-  this.players=new Map();this.winners=[];
+  this.players=new Map();this.presence=new ZonePresenceIndex();this.winners=[];
   this.claimIds=new Map();this.claimSequences=new Map();this.version=0;
   this.auditEvents=[];this.auditNextId=1;
  }
@@ -90,6 +91,7 @@ export class V16Room {
   this.names.set(uid,newName);
   if(firstJoin)this.scores.set(uid,0);
   if(nameChanged)this.version++;
+  this.presence.upsert(uid,this.requirePlayer(uid));
   return this.privateView(uid,now);
  }
  requirePlayer(uid){validUid(uid);const p=this.players.get(uid);ensure(p,'Player not joined');return p}
@@ -104,7 +106,9 @@ export class V16Room {
    if(walkable(this.map.tiles,player.x+dx,player.y))player.x+=dx;
    if(walkable(this.map.tiles,player.x,player.y+dy))player.y+=dy;
   }
-  player.lastAt=now;return {x:player.x,y:player.y};
+  player.lastAt=now;
+  this.presence.upsert(uid,player);
+  return {x:player.x,y:player.y};
  }
  // Staging-only V16 preview: replay exactly the local 50ms input frames.
  // Every batch is bounded by real elapsed server time plus a fixed 100ms
@@ -134,7 +138,23 @@ export class V16Room {
   }
   p.previewCreditMs=credit-cost;p.previewBudgetAt=now;p.lastAt=now;
   p.previewSeq=seq;p.previewAck={x:p.x,y:p.y};
+  this.presence.upsert(uid,p);
   return {...p.previewAck};
+ }
+ // Read-only, ephemeral proximity query. It has no player-supplied x/y/radius,
+ // never touches canonical coins, score state or audit, and hides Firebase UIDs.
+ // The index is a local optimization inside one DO, not horizontal sharding.
+ nearby(uid,now){
+  this.requirePlayer(uid);validNow(now);
+  const visible=this.presence.nearby(uid,now);
+  return {radius:visible.radius,viewerActive:visible.viewerActive,
+   players:visible.players.map(({uidForServerOnly,id,x,y})=>({
+    id,name:publicNickname(this.names.get(uidForServerOnly)),x,y
+   }))};
+ }
+ rebuildPresence(){
+  this.presence=new ZonePresenceIndex();
+  for(const [uid,p] of this.players)this.presence.upsert(uid,p);
  }
  chestRespawn(now){if(this.chest.readyAt===0||this.chest.readyAt>now)return false;
   const sites=this.map.chestSites;

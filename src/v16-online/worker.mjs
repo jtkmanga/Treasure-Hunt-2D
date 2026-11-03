@@ -60,7 +60,7 @@ export async function handleV16Request(req,env,testing={}){
    ...headers,
   }});
  }
- if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',movementProtocol:'Sync V16.26',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',journalIntegrity:'read-only-v1',adminEnrollment:'pinned-google-uid-v1',isolatedRecoveryDrill:'synthetic-pitr-v1',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
+ if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',movementProtocol:'Sync V16.26',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',journalIntegrity:'read-only-v1',adminEnrollment:'pinned-google-uid-v1',isolatedRecoveryDrill:'synthetic-pitr-v1',zonePresence:'local-zone-index-v1',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
  // Staging-only read-only probe checks the *actual Durable Object code*.
  // The public Worker health marker alone cannot detect deferred DO upgrades.
  // A shared rate limit prevents this diagnostic from becoming an unbounded DO.
@@ -100,11 +100,11 @@ export async function handleV16Request(req,env,testing={}){
     typeof env.V16_ADMIN_EMAIL==='string'&&env.V16_ADMIN_EMAIL)))
   return json({error:'Admin audit unavailable'},403,headers);
  const pilotMatch=/^\/api\/v16\/pilot\/(world|join|collect)$/.exec(url.pathname);
- const previewMatch=/^\/api\/v16\/preview\/(world|join|move|collect)$/.exec(url.pathname);
+ const previewMatch=/^\/api\/v16\/preview\/(world|join|move|collect|nearby)$/.exec(url.pathname);
  const pilot=!!pilotMatch,preview=!!previewMatch;
  if(!pilot&&!preview&&!auditRead&&!roleRoute&&!pitrDrill&&!['/api/v16/auth-check','/api/v16/world','/api/v16/join','/api/v16/move','/api/v16/collect'].includes(url.pathname))return json({error:'Not found'},404,headers);
  const authCheck=url.pathname==='/api/v16/auth-check';
- const read=auditRead||adminStatus||url.pathname==='/api/v16/world'||(pilot&&pilotMatch[1]==='world')||(preview&&previewMatch[1]==='world');
+ const read=auditRead||adminStatus||url.pathname==='/api/v16/world'||(pilot&&pilotMatch[1]==='world')||(preview&&['world','nearby'].includes(previewMatch[1]));
  if(req.method!==((read||authCheck)?'GET':'POST'))return json({error:'Method not allowed'},405,headers);
  // Pilot runs in an entirely separate DO with its own, non-public scores.
  // Never loosen the production Free-world write gate for a beta experiment.
@@ -193,7 +193,7 @@ export async function handleV16Request(req,env,testing={}){
   // Use explicit preview actions: never fall through to the legacy Free/VIP move.
   // A Durable Object still running outdated code rejects these actions instead
   // of silently dispatching new move packets to the old axes-only handler.
-  const action=auditRead?'admin-audit':(preview&&['join','move'].includes(route)?'preview-':pilot?'pilot-':'')+route;
+  const action=auditRead?'admin-audit':(preview&&['join','move','nearby'].includes(route)?'preview-':pilot?'pilot-':'')+route;
  const beforeIdParam=auditRead?url.searchParams.get('beforeId'):null;
  if(beforeIdParam!==null&&(!/^[1-9][0-9]{0,14}$/.test(beforeIdParam)||
    !Number.isSafeInteger(Number(beforeIdParam))))
@@ -232,7 +232,10 @@ export class V16WorldRoom {
   try {
    const stored=await this.state.storage.get('v16-state');
    this.room=stored?V16Room.restore(stored):new V16Room(scope);
-   if(players)this.room.players=new Map([...players].map(([id,p])=>[id,{...p}]));
+   if(players){
+    this.room.players=new Map([...players].map(([id,p])=>[id,{...p}]));
+    this.room.rebuildPresence();
+   }
   } catch {
    // Fail closed until the DO is restarted and its durable state is reloaded.
    this.storageBlocked=true;
@@ -278,12 +281,18 @@ export class V16WorldRoom {
      
     }
     if(req.method==='GET'&&new URL(req.url).pathname==='/protocol')
-     return json({ok:true,movementProtocol:'Sync V16.26',durableObjectCode:'v16-preview-batched-input-v2',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',journalIntegrity:'read-only-v1',adminEnrollment:'pinned-google-uid-v1',isolatedRecoveryDrill:'synthetic-pitr-v1',durableJournalSupported:journalSupported(this.state.storage),pitrApiAvailable:typeof this.state.storage.getCurrentBookmark==='function'});
+     return json({ok:true,movementProtocol:'Sync V16.26',durableObjectCode:'v16-preview-batched-input-v2',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',journalIntegrity:'read-only-v1',adminEnrollment:'pinned-google-uid-v1',isolatedRecoveryDrill:'synthetic-pitr-v1',zonePresence:'local-zone-index-v1',durableJournalSupported:journalSupported(this.state.storage),pitrApiAvailable:typeof this.state.storage.getCurrentBookmark==='function'});
    // One alarm per room at the next Bangkok season boundary.
    if(this.state.storage.getAlarm&&this.state.storage.setAlarm&&await this.state.storage.getAlarm()===null)
     await this.state.storage.setAlarm(Date.parse(periodFor(scope,Date.now()).resetsAt));
    const uid=req.headers.get('x-internal-uid');const now=Date.now();const action=new URL(req.url).pathname.slice(1);
    try{
+    if(action==='preview-nearby'){
+     if(req.method!=='GET'||!uid||req.headers.get('x-internal-preview')!=='1')
+      return json({error:'Unauthorized nearby request'},403);
+     try{return json({ok:true,nearby:this.room.nearby(uid,now)})}
+     catch{return json({error:'Player must join before querying nearby players'},409)}
+    }
     if(action==='world'||action==='pilot-world'){
      const previous=this.room.version,world=this.room.publicView(now);
      if(previous!==this.room.version){
