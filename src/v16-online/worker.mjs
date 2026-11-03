@@ -10,6 +10,7 @@ import {GAME_PREVIEW_PAGE} from './game-preview-page.mjs';
 import {V16Room} from './room.mjs';
 import {periodFor} from './periods.mjs';
 import {journalSupported,persistGameState,readJournalPage,inspectJournalIntegrity,inspectRecoveryReadiness} from './durable-score-journal.mjs';
+import {runIsolatedPitrDrill,isolatedPitrDo} from './isolated-pitr-drill.mjs';
 const SCOPES={free:'free1',vip:'vip1',free1:'free1',vip1:'vip1'};
 // Dedicated isolated DO; pilot claims NEVER affect Free Server ranking or coins.
 const PILOT_ROOM='free1-coin-race-pilot-v1';
@@ -59,7 +60,7 @@ export async function handleV16Request(req,env,testing={}){
    ...headers,
   }});
  }
- if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',movementProtocol:'Sync V16.26',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',journalIntegrity:'read-only-v1',adminEnrollment:'pinned-google-uid-v1',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
+ if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',movementProtocol:'Sync V16.26',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',journalIntegrity:'read-only-v1',adminEnrollment:'pinned-google-uid-v1',isolatedRecoveryDrill:'synthetic-pitr-v1',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
  // Staging-only read-only probe checks the *actual Durable Object code*.
  // The public Worker health marker alone cannot detect deferred DO upgrades.
  // A shared rate limit prevents this diagnostic from becoming an unbounded DO.
@@ -83,7 +84,12 @@ export async function handleV16Request(req,env,testing={}){
  const adminStatus=url.pathname==='/api/v16/admin/status';
  const adminEnroll=url.pathname==='/api/v16/admin/enroll';
  const roleRoute=adminStatus||adminEnroll;
+ const pitrDrill=url.pathname==='/api/v16/admin/pitr-drill';
  const auditRoom=url.searchParams.get('room')||'preview';
+ // Explicit administrator-only POST; no recovery capability on any public URL.
+ if(pitrDrill&&(scope!=='free1'||env.ENABLE_V16_ADMIN_READS!=='true'||
+  env.ENABLE_V16_RECOVERY_DRILL!=='true'))
+  return json({error:'Isolated recovery drill disabled'},403,headers);
  if(auditRead&&(!['preview','free'].includes(auditRoom)||scope!=='free1'))
   return json({error:'Invalid audit room'},400,headers);
  if(roleRoute&&(scope!=='free1'||(adminEnroll&&env.ENABLE_V16_ADMIN_ENROLL!=='true')||
@@ -96,7 +102,7 @@ export async function handleV16Request(req,env,testing={}){
  const pilotMatch=/^\/api\/v16\/pilot\/(world|join|collect)$/.exec(url.pathname);
  const previewMatch=/^\/api\/v16\/preview\/(world|join|move|collect)$/.exec(url.pathname);
  const pilot=!!pilotMatch,preview=!!previewMatch;
- if(!pilot&&!preview&&!auditRead&&!roleRoute&&!['/api/v16/auth-check','/api/v16/world','/api/v16/join','/api/v16/move','/api/v16/collect'].includes(url.pathname))return json({error:'Not found'},404,headers);
+ if(!pilot&&!preview&&!auditRead&&!roleRoute&&!pitrDrill&&!['/api/v16/auth-check','/api/v16/world','/api/v16/join','/api/v16/move','/api/v16/collect'].includes(url.pathname))return json({error:'Not found'},404,headers);
  const authCheck=url.pathname==='/api/v16/auth-check';
  const read=auditRead||adminStatus||url.pathname==='/api/v16/world'||(pilot&&pilotMatch[1]==='world')||(preview&&previewMatch[1]==='world');
  if(req.method!==((read||authCheck)?'GET':'POST'))return json({error:'Method not allowed'},405,headers);
@@ -108,7 +114,7 @@ export async function handleV16Request(req,env,testing={}){
   return json({error:'Isolated game preview not enabled'},403,headers);
  // World polling is opt-in on staging: public traffic to a DO costs CPU/storage.
  if(!pilot&&!preview&&!authCheck&&read&&env.ENABLE_V16_READS!=='true')return json({error:'World reads not enabled'},403,headers);
- if(!pilot&&!preview&&!authCheck&&!read&&!adminEnroll&&env.ENABLE_V16_WRITES!=='true')return json({error:'Online writes not enabled'},403,headers);
+ if(!pilot&&!preview&&!authCheck&&!read&&!adminEnroll&&!pitrDrill&&env.ENABLE_V16_WRITES!=='true')return json({error:'Online writes not enabled'},403,headers);
  if(!authCheck&&(!env.ROOMS?.idFromName||!env.ROOMS?.get))return json({error:'World storage not configured'},503,headers);
  let uid=null,input={},verifiedIdentity=null;
  // Closed-beta world snapshots carry live scores and cause Durable Object reads.
@@ -127,7 +133,7 @@ export async function handleV16Request(req,env,testing={}){
    // Missing/invalid allowlists deny everyone (including admin users).
    if(!authorizeClosedBeta(identity,env).allowed)
     return json({error:'Closed Beta invitation required'},403,headers);
-   const limit=await env.V16_RATE_LIMITER.limit({key:(authCheck?'auth:':roleRoute?'admin-role:':auditRead?'admin-audit:':pilot?'pilot:':preview?'preview:':read?'world:':'write:')+uid});
+   const limit=await env.V16_RATE_LIMITER.limit({key:(authCheck?'auth:':roleRoute?'admin-role:':pitrDrill?'pitr-drill:':auditRead?'admin-audit:':pilot?'pilot:':preview?'preview:':read?'world:':'write:')+uid});
    if(!limit?.success)return json({error:'Too many requests'},429,headers);
    let person;
    try{
@@ -145,13 +151,13 @@ export async function handleV16Request(req,env,testing={}){
    if(person?.uid!==uid||person.disabled!==false||person.revoked!==false)
     return json({error:'Account not permitted'},403,headers);
    if(scope==='vip1')return json({error:'VIP verification pending'},403,headers);
-   if(!read&&!authCheck&&!adminEnroll)input=await bodyJSON(req);
+   if(!read&&!authCheck&&!adminEnroll&&!pitrDrill)input=await bodyJSON(req);
   }catch{return json({error:'Authentication, App Check or account validation failed'},401,headers);}
  }
  // Admin enrollment is a separate, non-score action. The caller must have
  // signed Google/Firebase ID, verified email, App Check, live account and invitation.
  // The Worker never trusts client-supplied UID or email in a request body.
- if(roleRoute||auditRead){
+ if(roleRoute||auditRead||pitrDrill){
   const legacyAudit=!!(auditRead&&typeof env.V16_ADMIN_UID==='string'&&
    env.V16_ADMIN_UID.length>0&&uid===env.V16_ADMIN_UID);
   if(!legacyAudit){
@@ -174,6 +180,12 @@ export async function handleV16Request(req,env,testing={}){
    }catch{return json({error:'Admin enrollment service unavailable'},503,headers)}
   }
  }
+ // The drill is limited to the enrolled administrator; it never accesses the
+ // actual game/score room and never accepts an arbitrary DO name from callers.
+ if(pitrDrill){
+  const outcome=await runIsolatedPitrDrill(env);
+  return json(outcome.result,outcome.status,headers);
+ }
  // Auth probe never accesses a Durable Object, exposes a UID/email or grants points.
  if(authCheck)return json({ok:true,googleVerified:true,appCheckVerified:true,accountActive:true,betaInvited:true,scope:'free',writesEnabled:false},200,headers);
  const name=env.ROOMS.idFromName(auditRead?(auditRoom==='preview'?PREVIEW_ROOM:'free1'):preview?PREVIEW_ROOM:pilot?PILOT_ROOM:scope),stub=env.ROOMS.get(name);
@@ -190,7 +202,9 @@ export async function handleV16Request(req,env,testing={}){
  if(read&&since!==null&&(!/^(0|[1-9][0-9]{0,14})$/.test(since)||!Number.isSafeInteger(Number(since))))
   return json({error:'Invalid version'},400,headers);
  const forwarded=new Request('https://internal/'+action,{method:read?'GET':'POST',headers:{'content-type':'application/json','x-internal-uid':uid||'','x-internal-scope':scope,'x-internal-preview':preview?'1':'0',...(auditRead?{'x-internal-admin-audit':'1',...(beforeIdParam!==null?{'x-internal-audit-before':beforeIdParam}:{})}:{}),...(read&&since!==null?{'x-world-since':since}:{})},body:read?undefined:JSON.stringify(input)});
- try{const response=await stub.fetch(forwarded);return json(await response.json(),response.status,headers)}catch{return json({error:'World temporarily unavailable'},503,headers)}
+ try{const response=await stub.fetch(forwarded);const result=await response.json();
+  if(auditRead&&response.ok)result.syntheticDrillAvailable=env.ENABLE_V16_RECOVERY_DRILL==='true';
+  return json(result,response.status,headers)}catch{return json({error:'World temporarily unavailable'},503,headers)}
 }
 export default {fetch(req,env){return handleV16Request(req,env)}};
 export class V16WorldRoom {
@@ -211,6 +225,8 @@ export class V16WorldRoom {
   }
  }
  async fetch(req){
+  if(new URL(req.url).pathname.startsWith('/pitr/'))
+   return isolatedPitrDo(req,this.state);
   const task=async()=>{
    const scope=req.headers.get('x-internal-scope');
    if(!['free1','vip1'].includes(scope))return json({error:'Invalid internal scope'},403);
@@ -248,7 +264,7 @@ export class V16WorldRoom {
      
     }
     if(req.method==='GET'&&new URL(req.url).pathname==='/protocol')
-     return json({ok:true,movementProtocol:'Sync V16.26',durableObjectCode:'v16-preview-batched-input-v2',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',journalIntegrity:'read-only-v1',adminEnrollment:'pinned-google-uid-v1',durableJournalSupported:journalSupported(this.state.storage),pitrApiAvailable:typeof this.state.storage.getCurrentBookmark==='function'});
+     return json({ok:true,movementProtocol:'Sync V16.26',durableObjectCode:'v16-preview-batched-input-v2',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',journalIntegrity:'read-only-v1',adminEnrollment:'pinned-google-uid-v1',isolatedRecoveryDrill:'synthetic-pitr-v1',durableJournalSupported:journalSupported(this.state.storage),pitrApiAvailable:typeof this.state.storage.getCurrentBookmark==='function'});
    // One alarm per room at the next Bangkok season boundary.
    if(this.state.storage.getAlarm&&this.state.storage.setAlarm&&await this.state.storage.getAlarm()===null)
     await this.state.storage.setAlarm(Date.parse(periodFor(scope,Date.now()).resetsAt));
