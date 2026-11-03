@@ -12,6 +12,7 @@ const T=Date.now()-2000;
 function zones(){
  const instances=new Map(),requests=[];
  let failRemove=null,failedOnce=false;
+ const slowZones=new Map();
  const namespace={
   idFromName(name){return name},
   get(name){
@@ -24,11 +25,15 @@ function zones(){
     if(path==='/zone/remove'&&name===failRemove&&!failedOnce){
      failedOnce=true;throw Error('Injected old-zone outage');
     }
+    const pause=slowZones.get(name)||0;
+    if(pause)await new Promise(resolve=>setTimeout(resolve,pause));
     return instances.get(name).fetch(req);
    }};
   }
  };
- return {namespace,instances,requests,failOldRemoval(name){
+ return {namespace,instances,requests,slowZone(name,delayMs){
+  if(delayMs)slowZones.set(name,delayMs);else slowZones.delete(name);
+ },failOldRemoval(name){
   failRemove=name;failedOnce=false;
  },get oldRemovalFailed(){return failedOnce}};
 }
@@ -113,7 +118,7 @@ test('crossing a zone migrates once; duplicate sync and stale packets cannot res
  const oldZone=zoneName(9.9,8);
  cross(room,'traveller',10.2,8);
  lab.failOldRemoval(oldZone);
- await assert.rejects(()=>router.sync(room,'traveller'),/Injected old-zone outage/);
+ await assert.rejects(()=>router.sync(room,'traveller'),/Zone shard transport failure/);
  const unconfirmed=await router.nearby(room,'viewer',T+1000);
  assert.ok(!unconfirmed.players.some(p=>p.name==='Traveller'),
   'coordinator must not show an unconfirmed stale projection');
@@ -218,4 +223,71 @@ test('shard experiment API is disabled by default and requires real verified clo
  const cross=await handleV16Request(new Request(BASE+'/api/v16/preview/shard-nearby?scope=vip'),t.env);
  assert.equal(cross.status,403);
  assert.equal(t.worlds.size,1,'actual Free production DO remains untouched');
+});
+
+test('slow neighbor shard is bounded by deadline, never returns stale or partial avatar results',async()=>{
+ const lab=zones(),room=roomWithActors([
+  ['viewer',9.8,9.8,'Viewer'],['peer',10.4,9.8,'Peer']
+ ]);
+ const router=new V16ZoneRouter(lab.namespace,{timeoutMs:60});
+ await router.sync(room,'viewer');await router.sync(room,'peer');
+ assert.equal((await router.nearby(room,'viewer',T+100)).players.length,1);
+ lab.slowZone(zoneName(10.4,9.8),150);
+ const start=performance.now();
+ await assert.rejects(()=>router.nearby(room,'viewer',T+100),error=>error.code==='deadline');
+ const took=performance.now()-start;
+ assert.ok(took<300,'timeout guards a stuck neighbor read instead of hanging');
+ // In-flight work from unabortable DO mocks must not affect the authoritative room.
+ assert.equal(room.publicView(T+100).coins.length,200);
+ assert.equal(room.scores.get('peer'),0);
+ await new Promise(resolve=>setTimeout(resolve,175));
+ const report=router.report();
+ assert.ok(report.requestCount>=4);
+ assert.ok(report.deadlineCount>=1);
+ assert.equal(report.inFlight,0);
+ assert.equal(report.timeoutBudgetMs,60);
+ assert.ok(report.peakInFlight<=9,'at most 9 zone DO reads per viewer');
+ assert.ok(!JSON.stringify(report).includes('peer'),'metrics never expose UID');
+ lab.slowZone(zoneName(10.4,9.8),0);
+ const restored=await router.nearby(room,'viewer',T+100);
+ assert.equal(restored.players.length,1);
+});
+test('timed-out old-zone removal keeps move unconfirmed and retry repairs handoff safely',async()=>{
+ const lab=zones(),room=roomWithActors([
+  ['viewer',9.5,8,'Viewer'],['traveller',9.9,8,'Traveller']
+ ]);
+ const router=new V16ZoneRouter(lab.namespace,{timeoutMs:60});
+ for(const uid of room.players.keys())await router.sync(room,uid);
+ const oldZone=zoneName(9.9,8),original=(await router.nearby(room,'viewer',T+100)).players[0].id;
+ cross(room,'traveller',10.2,8);
+ lab.slowZone(oldZone,135);
+ await assert.rejects(()=>router.sync(room,'traveller'),error=>error.code==='deadline');
+ assert.equal(router.published.get('traveller'),oldZone,'failed handoff cannot be acknowledged');
+ assert.equal((await router.nearby(room,'viewer',T+500).catch(()=>({players:[]}))).players.length,0,
+  'stale unconfirmed player must never be returned');
+ await new Promise(resolve=>setTimeout(resolve,155));
+ lab.slowZone(oldZone,0);
+ const repaired=await router.sync(room,'traveller');
+ assert.equal(repaired.transferred,true);
+ const after=await router.nearby(room,'viewer',T+500);
+ assert.equal(after.players.filter(p=>p.name==='Traveller').length,1);
+ assert.equal(after.players.find(p=>p.name==='Traveller').id,original);
+ assert.equal(room.scores.get('traveller'),0);
+ assert.ok(router.report().deadlineCount>=1);
+});
+test('zone transport validates budgets and returns private aggregate-only metrics',async()=>{
+ const lab=zones();
+ assert.throws(()=>new V16ZoneRouter(lab.namespace,{timeoutMs:5}),/Invalid zone timeout/);
+ const room=roomWithActors([['viewer',44,44,'Viewer']]);
+ const router=new V16ZoneRouter(lab.namespace,{timeoutMs:100});
+ await router.sync(room,'viewer');
+ await router.nearby(room,'viewer',T+100);
+ const m=router.report();
+ assert.ok(m.requestCount>=1);
+ assert.equal(m.requestCount,m.successful+m.deadlineCount+m.rejectedCount+m.transportErrorCount);
+ assert.equal(m.inFlight,0);
+ assert.equal(m.timeoutBudgetMs,100);
+ assert.ok(m.latency.p99Ms>=m.latency.p50Ms);
+ const serialized=JSON.stringify(m);
+ assert.ok(!serialized.includes('viewer')&&!serialized.includes('avatar_'));
 });
