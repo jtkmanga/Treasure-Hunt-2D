@@ -105,12 +105,14 @@ export function estimateRealtimeTransport({
  if(!Number.isSafeInteger(concurrent)||concurrent<0||concurrent>100_000||
   !Number.isFinite(movingFraction)||movingFraction<0||movingFraction>1||
   !Number.isFinite(movingEventIntervalSeconds)||movingEventIntervalSeconds<1||
-  !Number.isFinite(idleEventIntervalSeconds)||idleEventIntervalSeconds<10||
+  !(idleEventIntervalSeconds===null||
+    Number.isFinite(idleEventIntervalSeconds)&&idleEventIntervalSeconds>=10)||
   !Number.isSafeInteger(days)||days<1||days>31)
   throw Error('Invalid transport cost scenario');
  const seconds=days*86400;
  const movingMessages=concurrent*movingFraction*seconds/movingEventIntervalSeconds;
- const idleMessages=concurrent*(1-movingFraction)*seconds/idleEventIntervalSeconds;
+ const idleMessages=idleEventIntervalSeconds===null?0:
+  concurrent*(1-movingFraction)*seconds/idleEventIntervalSeconds;
  const totalFrames=Math.ceil(movingMessages+idleMessages);
  // Cloudflare counts 20 incoming WebSocket messages as one DO request.
  const approximateDORequests=Math.ceil(totalFrames/20);
