@@ -121,10 +121,14 @@ export class ZonePresenceIndex{
     }
    }
   }
-  return {players:candidates.map(({otherUid,record})=>({
-   id:record.avatarId,uidForServerOnly:otherUid,
-   x:Math.round(record.x*100)/100,y:Math.round(record.y*100)/100
-  })),radius,limit,viewerActive:true};
+  return {players:candidates.map(({otherUid,record})=>{
+   const safe={id:record.avatarId,
+    x:Math.round(record.x*100)/100,y:Math.round(record.y*100)/100};
+   // Internal name lookup is available only to the owning room.
+   // A JSON response, spread or Object.keys can never disclose raw UIDs.
+   Object.defineProperty(safe,'uidForServerOnly',{value:otherUid,enumerable:false});
+   return safe;
+  }),radius,limit,viewerActive:true};
  }
  checkInvariants(){
   for(const [uid,record] of this.entries){
