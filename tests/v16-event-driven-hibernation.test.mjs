@@ -145,6 +145,13 @@ test('monthly $10 budget model explicitly counts incoming messages but never cla
  });
  assert.ok(low.basePlusIncomingMessageRequestsUSD<high.basePlusIncomingMessageRequestsUSD);
  assert.ok(high.basePlusIncomingMessageRequestsUSD>10);
+ const fullyIdle=estimateRealtimeTransport({
+  concurrent:10_000,movingFraction:0,days:30,
+  movingEventIntervalSeconds:3,idleEventIntervalSeconds:null
+ });
+ assert.equal(fullyIdle.inboundClientMessages,0);
+ assert.equal(fullyIdle.estimatedDORequestsFromIncomingMessages,0);
+ assert.ok(fullyIdle.basePlusIncomingMessageRequestsUSD<=low.basePlusIncomingMessageRequestsUSD);
  assert.equal(low.completeMonthlyBillKnown,false);
  assert.equal(low.underTenDollarTotalProven,false);
  assert.equal(low.realAuthenticatedConcurrencyTested,0);
