@@ -193,7 +193,7 @@ export async function handleV16Request(req,env,testing={}){
   // Use explicit preview actions: never fall through to the legacy Free/VIP move.
   // A Durable Object still running outdated code rejects these actions instead
   // of silently dispatching new move packets to the old axes-only handler.
-  const action=auditRead?'admin-audit':(preview&&['join','move'].includes(route)?'preview-':pilot?'pilot-':'')+route;
+  const action=auditRead?'admin-audit':(preview&&['join','move','nearby'].includes(route)?'preview-':pilot?'pilot-':'')+route;
  const beforeIdParam=auditRead?url.searchParams.get('beforeId'):null;
  if(beforeIdParam!==null&&(!/^[1-9][0-9]{0,14}$/.test(beforeIdParam)||
    !Number.isSafeInteger(Number(beforeIdParam))))
