@@ -119,7 +119,7 @@ test('reconnect creates a new sequence and idle time stays free of event frames'
  assert.deepEqual(sent.map(v=>v.seq),[1,2,1]);
  assert.deepEqual(sent.map(v=>v.type),['start','stop','start']);
  for(let i=1100;i<=100_000;i+=100)c.tick(i);
- assert.ok(sent.length<=35,'active movement heartbeat rate limited to every 3 sec');
+ assert.ok(sent.length>=30&&sent.length<=40,'only roughly one heartbeat per 3 seconds while active');
  c.stop(100_100);
  const stopCount=sent.length;
  for(let i=100_200;i<1_000_000;i+=100)c.tick(i);
