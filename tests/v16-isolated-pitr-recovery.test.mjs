@@ -97,19 +97,20 @@ test('recovery drill refuses any non-synthetic DO name and unsupported methods',
   method:'GET',headers:{'x-internal-pitr-drill':'1'}}),lab.state);
  assert.equal(method.status,405);
 });
-test('existing public game, Free, VIP and Admin routes never trigger synthetic restore',async()=>{
+test('restore endpoint requires explicit POST, enabled flag and verified Admin',async()=>{
  const lab=syntheticStorage(),env=envFor(lab);
  env.ENABLE_V16_RECOVERY_DRILL='false';
- const disabled=await handleV16Request(new Request('https://example.test/api/v16/recovery-drill'),env);
+ const endpoint='https://example.test/api/v16/admin/pitr-drill?scope=free';
+ const disabled=await handleV16Request(new Request(endpoint,{method:'POST'}),env);
  assert.equal(disabled.status,403);
  assert.equal(lab.getRestoreCalls(),0);
  assert.equal(env.invoked.length,0);
- const wrongMethod=await handleV16Request(new Request('https://example.test/api/v16/recovery-drill',{method:'POST'}),env);
- assert.equal(wrongMethod.status,405);
- assert.equal(lab.getRestoreCalls(),0);
+ const publicRoute=await handleV16Request(new Request('https://example.test/api/v16/recovery-drill'),env);
+ assert.equal(publicRoute.status,404,'no unauthenticated PITR route exists');
  env.ENABLE_V16_RECOVERY_DRILL='true';
- const enabled=await handleV16Request(new Request('https://example.test/api/v16/recovery-drill'),env);
- assert.equal(enabled.status,200);
- assert.equal((await enabled.json()).storageRestored,true);
- assert.equal(lab.getRestoreCalls(),1);
+ const wrongMethod=await handleV16Request(new Request(endpoint),env);
+ assert.equal(wrongMethod.status,405);
+ const missingFirebase=await handleV16Request(new Request(endpoint,{method:'POST'}),env);
+ assert.equal(missingFirebase.status,503,'must require configured Google/App Check');
+ assert.equal(lab.getRestoreCalls(),0,'no unsigned request reaches synthetic DO');
 });
