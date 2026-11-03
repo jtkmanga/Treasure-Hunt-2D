@@ -58,7 +58,11 @@ export async function handleCanaryRequest(req,env){
  const length=Number(req.headers.get('content-length')||'0');
  if(length>256)return json({error:'Oversized request'},413);
  let payload;
- try{payload=await req.json()}catch{return json({error:'Invalid request'},400)}
+ try{
+  const raw=await req.text();
+  if(raw.length>256)return json({error:'Oversized request'},413);
+  payload=JSON.parse(raw);
+ }catch{return json({error:'Invalid request'},400)}
  const plan=validRequest(payload);
  if(!plan)return json({error:'Invalid canary budget'},400);
  const stub=env.CANARY_GATE.get(env.CANARY_GATE.idFromName(GATE_NAME));
