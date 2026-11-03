@@ -1,0 +1,51 @@
+name: V16 Cloudflare Free 10K x 30 Days Feasibility (Offline Only)
+
+on:
+  pull_request:
+    paths:
+      - 'src/v16-online/free-tier-30day-feasibility.mjs'
+      - 'scripts/v16-free-10k-30day-probe.mjs'
+      - 'tests/v16-free-10k-30day-feasibility.test.mjs'
+      - 'docs/v16-10k-zero-dollar-30day-report.md'
+      - 'package.json'
+      - '.github/workflows/v16-free-10k-30day.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v16-free-10k-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  free-quota:
+    name: 30-day quota model — no network load
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate scenario constraints and daily quotas
+        run: npm run test:free-30days
+      - name: Run 30-day mathematical probe (no Cloudflare)
+        run: |
+          npm run capacity:free-30days > /dev/null
+          node scripts/v16-free-10k-30day-probe.mjs > v16-free-10k-30day-report.json
+          node --input-type=module -e "import fs from 'node:fs';const d=JSON.parse(fs.readFileSync('v16-free-10k-30day-report.json','utf8'));if(d.cloudflareOutgoingRequests!==0||d.realConcurrentUsersTested!==0||d.results.length!==10||d.results.some(s=>s.days!==30||s.zeroDollarMultiplayerProven!==false))process.exit(1);const x=d.results.find(s=>s.id==='10k-all-move-60seconds');if(x.firstDayDurableRequestsMin!==730000||x.quotaFailDays!==30||d.allSustainedInteractiveCasesPass!==false)process.exit(1);console.log(d.results.map(s=>({scenario:s.id,quotaPass:s.requestQuotasPassAll30Days,maxDoPerDay:s.largestDailyDurableRequestsMin})))"
+      - name: Publish caveated result
+        run: |
+          echo '## 10,000 concurrent users x 30 days @ $0 — offline verdict' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Cloudflare Durable Objects Free hard cap: **100,000 billed requests/day**.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- 10K users sending one incoming WS message every 60 seconds: **720,000 DO request-equivalents/day**, excluding initial 10K connections and all other operations.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- This mathematical scenario **exceeds Free quota for all 30 days**.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Idle connections can pass **request-only** arithmetic, not full interactive gameplay or a guaranteed $0 bill.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- **Actual Cloudflare traffic: zero. No Worker deploy. No authenticated load test.**' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload 30-day feasibility report
+        uses: actions/upload-artifact@v4
+        with:
+          name: v16-10k-free-30day-simulation-json
+          path: v16-free-10k-30day-report.json
+          retention-days: 7
