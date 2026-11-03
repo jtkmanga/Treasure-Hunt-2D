@@ -23,6 +23,7 @@ test('isolated V16 staging Worker is alive with reads only and no score writes',
  assert.equal(protocol.scoreAudit,'private-audit-v1','running DO must have private score audit build');
  assert.equal(protocol.fullJournal,'sqlite-awards-v1','Durable Object code must support full score journal');
  assert.equal(protocol.journalIntegrity,'read-only-v1','DO must serve integrity verifier code');
+ assert.equal(protocol.adminEnrollment,'pinned-google-uid-v1','running DO contains secure role logic');
  assert.equal(protocol.pitrApiAvailable,true,'live SQLite-backed DO must provide non-destructive recovery bookmark API');
  assert.equal(protocol.durableJournalSupported,true,'live DO must expose SQLite transaction + synchronous KV support');
  assert.equal(data.movementProtocol,'Sync V16.26','live staging must serve movement fix');
@@ -30,6 +31,7 @@ test('isolated V16 staging Worker is alive with reads only and no score writes',
  assert.equal(data.scoreAudit,'private-audit-v1','running Worker must have private score audit build');
  assert.equal(data.fullJournal,'sqlite-awards-v1','Worker must expose full score journal version');
  assert.equal(data.journalIntegrity,'read-only-v1','Worker must expose private consistency verifier');
+ assert.equal(data.adminEnrollment,'pinned-google-uid-v1','Worker is enrolled admin-aware');
  assert.equal(health.headers.get('cache-control'),'no-store');
 });
 test('anonymous world reads are denied and score writes stay closed',async()=>{
@@ -41,6 +43,14 @@ test('anonymous world reads are denied and score writes stay closed',async()=>{
   body:'{}',signal:AbortSignal.timeout(15000)});
  assert.equal(score.status,403);
  assert.match((await score.text()),/Online writes not enabled/);
+});
+test('live Staging admin enrollment remains disabled until explicitly configured',async()=>{
+ const status=await fetch(BASE+'/api/v16/admin/status?scope=free',{signal:AbortSignal.timeout(15000)});
+ assert.equal(status.status,403,'public status must not expose admin identity');
+ const enroll=await fetch(BASE+'/api/v16/admin/enroll?scope=free',{
+  method:'POST',headers:{'content-type':'application/json'},body:'{}',signal:AbortSignal.timeout(15000)
+ });
+ assert.equal(enroll.status,403,'admin enrollment cannot be triggered without configured role');
 });
 test('private administrator audit remains closed on public Staging',async()=>{
  const base=BASE+'/api/v16/admin/audit?scope=free&room=preview';
