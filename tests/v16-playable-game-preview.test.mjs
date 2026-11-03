@@ -136,6 +136,29 @@ test('admin self-enrollment pins first signed Google UID and never grants other 
  assert.equal((await t.call('A','admin/status')).status,403);
  assert.equal((await t.call('A','admin/enroll',{})).status,403);
 });
+test('isolated recovery API is strictly pinned-Admin-only even in explicitly enabled window',async()=>{
+ const t=rig(),roomName='__treasure_hunt_2d_pitr_only_20261103_7b82cf__';
+ t.env.ENABLE_V16_RECOVERY_DRILL='true';t.env.ENABLE_V16_ADMIN_READS='true';
+ t.env.V16_ADMIN_EMAIL='alice@example.test';
+ assert.equal((await t.call('A','admin/pitr-drill',{})).status,403,
+  'matching email without pinned admin role is insufficient');
+ t.env.ENABLE_V16_ADMIN_ENROLL='true';
+ assert.equal((await t.call('A','admin/enroll',{})).status,200);
+ t.env.ENABLE_V16_ADMIN_ENROLL='false';
+ assert.equal((await t.call('B','admin/pitr-drill',{})).status,403,
+  'second Firebase account cannot trigger restore');
+ const realWorlds=[...t.instances.keys()];
+ const attempted=await t.call('A','admin/pitr-drill',{});
+ assert.equal(attempted.status,503,'non-SQL test double fails recovery closed');
+ assert.match(attempted.result.error,/Synthetic PITR/);
+ assert.ok(t.instances.has(roomName),'only isolated synthetic recovery object was addressed');
+ assert.ok(realWorlds.every(name=>t.instances.has(name)));
+ t.env.ENABLE_V16_RECOVERY_DRILL='false';
+ assert.equal((await t.call('A','admin/pitr-drill',{})).status,403,
+  'feature flag shuts drill off even for enrolled administrator');
+ const wrongMethod=await t.call('A','admin/pitr-drill');
+ assert.equal(wrongMethod.status,403);
+});
 test('Admin email bootstrap fails closed on unverified or non-Google Firebase sign-in',async()=>{
  const t=rig();
  t.env.ENABLE_V16_ADMIN_ENROLL='true';t.env.V16_ADMIN_EMAIL='alice@example.test';
