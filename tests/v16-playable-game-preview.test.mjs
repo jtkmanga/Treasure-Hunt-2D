@@ -265,6 +265,7 @@ test('preview protocol probes actual DO code and never grants anonymous movement
  assert.equal(check.result.freeSeasonPreview,'free-season-v1');
  assert.equal(check.result.scoreAudit,'private-audit-v1');
  assert.equal(check.result.journalIntegrity,'read-only-v1');
+ assert.equal(check.result.adminEnrollment,'pinned-google-uid-v1');
  const unknown=await t.call('A','preview/protocol',{x:1});
  assert.equal(unknown.status,405);
  const old=await t.call('A','preview/move',{dx:100,dy:0});
