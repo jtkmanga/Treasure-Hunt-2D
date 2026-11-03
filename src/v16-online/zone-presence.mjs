@@ -91,6 +91,19 @@ export class ZonePresenceIndex{
   const cx=Math.floor(viewer.x/ZONE_CELL_SIZE),cy=Math.floor(viewer.y/ZONE_CELL_SIZE);
   const cellsRadius=Math.ceil(radius/ZONE_CELL_SIZE);
   const candidates=[],r2=radius*radius;
+  const compare=(a,b)=>a.distance2-b.distance2||
+   a.record.avatarId.localeCompare(b.record.avatarId);
+  function addBounded(candidate){
+   if(candidates.length===limit&&compare(candidate,candidates.at(-1))>=0)return;
+   let lo=0,hi=candidates.length;
+   while(lo<hi){
+    const mid=(lo+hi)>>1;
+    if(compare(candidate,candidates[mid])<0)hi=mid;
+    else lo=mid+1;
+   }
+   candidates.splice(lo,0,candidate);
+   if(candidates.length>limit)candidates.pop();
+  }
   for(let dy=-cellsRadius;dy<=cellsRadius;dy++){
    for(let dx=-cellsRadius;dx<=cellsRadius;dx++){
     const cell=this.cells.get(`${cx+dx}:${cy+dy}`);
@@ -104,13 +117,11 @@ export class ZonePresenceIndex{
      }
      const x=other.x-viewer.x,y=other.y-viewer.y;
      const distance2=x*x+y*y;
-     if(distance2<=r2)candidates.push({otherUid,record:other,distance2});
+     if(distance2<=r2)addBounded({otherUid,record:other,distance2});
     }
    }
   }
-  candidates.sort((a,b)=>a.distance2-b.distance2||
-   a.record.avatarId.localeCompare(b.record.avatarId));
-  return {players:candidates.slice(0,limit).map(({otherUid,record})=>({
+  return {players:candidates.map(({otherUid,record})=>({
    id:record.avatarId,uidForServerOnly:otherUid,
    x:Math.round(record.x*100)/100,y:Math.round(record.y*100)/100
   })),radius,limit,viewerActive:true};
