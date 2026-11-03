@@ -177,6 +177,12 @@ test('Admin email bootstrap fails closed on unverified or non-Google Firebase si
 test('admin panel never enables itself without signed server permission',()=>{
  const page=BETA_LOGIN_PAGE;
  assert.ok(page.includes('id="adminAuditPanel" hidden'));
+ assert.ok(page.includes('id="pitrDrillSection" hidden'),'recovery UI hidden until verified Admin Audit');
+ assert.ok(page.includes('pitrDrillButton'),'recovery requires owner click');
+ assert.ok(page.includes("window.confirm("),'recovery requires explicit confirmation');
+ assert.ok(page.includes("fetch('/api/v16/admin/pitr-drill?scope=free'"),'recovery never calls unauthenticated public endpoint');
+ assert.ok(page.includes('data.syntheticDrillAvailable!==true'),'recovery button hidden without server flag');
+
  assert.ok(page.includes('id="adminEnrollPanel" hidden'),'self-enrollment must remain hidden to others');
  assert.ok(page.includes('adminEnrollButton'),'user must explicitly tap to pin Admin UID');
  assert.ok(page.includes("fetch('/api/v16/admin/enroll?scope=free'"));
