@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "treasure-hunt-2d-event-probe-isolated",
+  "main": "./src/v16-event-probe/worker.mjs",
+  "compatibility_date": "2026-11-03",
+  "workers_dev": true,
+  "vars": {
+    "EVENT_PROBE_ENABLED": "false",
+    "EVENT_PROBE_BILLING_REVIEWED": "false"
+  },
+  "durable_objects": {
+    "bindings": [
+      {"name": "EVENT_PROBE_ROOMS", "class_name": "V16HibernatingPresenceProbe"}
+    ]
+  },
+  "migrations": [
+    {"tag": "v1-event-probe-only", "new_sqlite_classes": ["V16HibernatingPresenceProbe"]}
+  ]
+}
