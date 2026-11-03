@@ -60,15 +60,6 @@ export async function handleV16Request(req,env,testing={}){
    ...headers,
   }});
  }
- // Synthetic-only recovery drill. OFF on ordinary Staging and Production.
- // Its fixed DO name cannot collide with actual Free/VIP/pilot/preview/admin rooms.
- if(url.pathname==='/api/v16/recovery-drill'){
-  if(req.method!=='GET')return json({error:'Method not allowed'},405,headers);
-  if(env.ENABLE_V16_RECOVERY_DRILL!=='true')
-   return json({error:'Recovery drill disabled'},403,headers);
-  const outcome=await runIsolatedPitrDrill(env);
-  return json(outcome.result,outcome.status,headers);
- }
  if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',movementProtocol:'Sync V16.26',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',journalIntegrity:'read-only-v1',adminEnrollment:'pinned-google-uid-v1',isolatedRecoveryDrill:'synthetic-pitr-v1',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
  // Staging-only read-only probe checks the *actual Durable Object code*.
  // The public Worker health marker alone cannot detect deferred DO upgrades.
@@ -93,7 +84,11 @@ export async function handleV16Request(req,env,testing={}){
  const adminStatus=url.pathname==='/api/v16/admin/status';
  const adminEnroll=url.pathname==='/api/v16/admin/enroll';
  const roleRoute=adminStatus||adminEnroll;
+ const pitrDrill=url.pathname==='/api/v16/admin/pitr-drill';
  const auditRoom=url.searchParams.get('room')||'preview';
+ // Explicit administrator-only POST; no recovery capability on any public URL.
+ if(pitrDrill&&(scope!=='free1'||env.ENABLE_V16_RECOVERY_DRILL!=='true'))
+  return json({error:'Isolated recovery drill disabled'},403,headers);
  if(auditRead&&(!['preview','free'].includes(auditRoom)||scope!=='free1'))
   return json({error:'Invalid audit room'},400,headers);
  if(roleRoute&&(scope!=='free1'||(adminEnroll&&env.ENABLE_V16_ADMIN_ENROLL!=='true')||
@@ -106,7 +101,7 @@ export async function handleV16Request(req,env,testing={}){
  const pilotMatch=/^\/api\/v16\/pilot\/(world|join|collect)$/.exec(url.pathname);
  const previewMatch=/^\/api\/v16\/preview\/(world|join|move|collect)$/.exec(url.pathname);
  const pilot=!!pilotMatch,preview=!!previewMatch;
- if(!pilot&&!preview&&!auditRead&&!roleRoute&&!['/api/v16/auth-check','/api/v16/world','/api/v16/join','/api/v16/move','/api/v16/collect'].includes(url.pathname))return json({error:'Not found'},404,headers);
+ if(!pilot&&!preview&&!auditRead&&!roleRoute&&!pitrDrill&&!['/api/v16/auth-check','/api/v16/world','/api/v16/join','/api/v16/move','/api/v16/collect'].includes(url.pathname))return json({error:'Not found'},404,headers);
  const authCheck=url.pathname==='/api/v16/auth-check';
  const read=auditRead||adminStatus||url.pathname==='/api/v16/world'||(pilot&&pilotMatch[1]==='world')||(preview&&previewMatch[1]==='world');
  if(req.method!==((read||authCheck)?'GET':'POST'))return json({error:'Method not allowed'},405,headers);
@@ -118,7 +113,7 @@ export async function handleV16Request(req,env,testing={}){
   return json({error:'Isolated game preview not enabled'},403,headers);
  // World polling is opt-in on staging: public traffic to a DO costs CPU/storage.
  if(!pilot&&!preview&&!authCheck&&read&&env.ENABLE_V16_READS!=='true')return json({error:'World reads not enabled'},403,headers);
- if(!pilot&&!preview&&!authCheck&&!read&&!adminEnroll&&env.ENABLE_V16_WRITES!=='true')return json({error:'Online writes not enabled'},403,headers);
+ if(!pilot&&!preview&&!authCheck&&!read&&!adminEnroll&&!pitrDrill&&env.ENABLE_V16_WRITES!=='true')return json({error:'Online writes not enabled'},403,headers);
  if(!authCheck&&(!env.ROOMS?.idFromName||!env.ROOMS?.get))return json({error:'World storage not configured'},503,headers);
  let uid=null,input={},verifiedIdentity=null;
  // Closed-beta world snapshots carry live scores and cause Durable Object reads.
@@ -137,7 +132,7 @@ export async function handleV16Request(req,env,testing={}){
    // Missing/invalid allowlists deny everyone (including admin users).
    if(!authorizeClosedBeta(identity,env).allowed)
     return json({error:'Closed Beta invitation required'},403,headers);
-   const limit=await env.V16_RATE_LIMITER.limit({key:(authCheck?'auth:':roleRoute?'admin-role:':auditRead?'admin-audit:':pilot?'pilot:':preview?'preview:':read?'world:':'write:')+uid});
+   const limit=await env.V16_RATE_LIMITER.limit({key:(authCheck?'auth:':roleRoute?'admin-role:':pitrDrill?'pitr-drill:':auditRead?'admin-audit:':pilot?'pilot:':preview?'preview:':read?'world:':'write:')+uid});
    if(!limit?.success)return json({error:'Too many requests'},429,headers);
    let person;
    try{
@@ -155,13 +150,13 @@ export async function handleV16Request(req,env,testing={}){
    if(person?.uid!==uid||person.disabled!==false||person.revoked!==false)
     return json({error:'Account not permitted'},403,headers);
    if(scope==='vip1')return json({error:'VIP verification pending'},403,headers);
-   if(!read&&!authCheck&&!adminEnroll)input=await bodyJSON(req);
+   if(!read&&!authCheck&&!adminEnroll&&!pitrDrill)input=await bodyJSON(req);
   }catch{return json({error:'Authentication, App Check or account validation failed'},401,headers);}
  }
  // Admin enrollment is a separate, non-score action. The caller must have
  // signed Google/Firebase ID, verified email, App Check, live account and invitation.
  // The Worker never trusts client-supplied UID or email in a request body.
- if(roleRoute||auditRead){
+ if(roleRoute||auditRead||pitrDrill){
   const legacyAudit=!!(auditRead&&typeof env.V16_ADMIN_UID==='string'&&
    env.V16_ADMIN_UID.length>0&&uid===env.V16_ADMIN_UID);
   if(!legacyAudit){
@@ -183,6 +178,12 @@ export async function handleV16Request(req,env,testing={}){
     if(result.admin!==true)return json({error:'Admin enrollment required'},403,headers);
    }catch{return json({error:'Admin enrollment service unavailable'},503,headers)}
   }
+ }
+ // The drill is limited to the enrolled administrator; it never accesses the
+ // actual game/score room and never accepts an arbitrary DO name from callers.
+ if(pitrDrill){
+  const outcome=await runIsolatedPitrDrill(env);
+  return json(outcome.result,outcome.status,headers);
  }
  // Auth probe never accesses a Durable Object, exposes a UID/email or grants points.
  if(authCheck)return json({ok:true,googleVerified:true,appCheckVerified:true,accountActive:true,betaInvited:true,scope:'free',writesEnabled:false},200,headers);
