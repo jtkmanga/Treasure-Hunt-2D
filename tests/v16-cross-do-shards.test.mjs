@@ -89,8 +89,12 @@ test('authoritative router projects positions into distinct zone DOs without exp
  assert.equal(nearby.players.length,2);
  assert.equal(nearby.players.find(x=>x.name==='Hunter').name,'Hunter');
  assert.ok(nearby.players.every(x=>x.id.startsWith('avatar_')));
+ const publicResult=JSON.stringify(nearby);
+ assert.ok(!publicResult.includes('"uid":'),'Firebase UID field is not serializable');
  for(const uid of ['viewer','alice','bob','far'])
-  assert.ok(!JSON.stringify(nearby).includes(uid));
+  assert.ok(!nearby.players.some(p=>p.id===uid),
+   'opaque avatar identifiers may not equal a Firebase UID');
+ assert.equal(nearby.players.find(p=>p.name==='Hunter').id.startsWith('avatar_'),true);
  assert.equal(room.publicView(T+1000).coins.length,200);
  assert.ok(room.publicView(T+1000).chest);
  assert.equal(room.scores.get('alice'),0);
