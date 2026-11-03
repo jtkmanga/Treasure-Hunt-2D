@@ -24,6 +24,7 @@ test('isolated V16 staging Worker is alive with reads only and no score writes',
  assert.equal(protocol.fullJournal,'sqlite-awards-v1','Durable Object code must support full score journal');
  assert.equal(protocol.journalIntegrity,'read-only-v1','DO must serve integrity verifier code');
  assert.equal(protocol.adminEnrollment,'pinned-google-uid-v1','running DO contains secure role logic');
+ assert.equal(protocol.isolatedRecoveryDrill,'synthetic-pitr-v1','running DO must have synthetic PITR gate');
  assert.equal(protocol.pitrApiAvailable,true,'live SQLite-backed DO must provide non-destructive recovery bookmark API');
  assert.equal(protocol.durableJournalSupported,true,'live DO must expose SQLite transaction + synchronous KV support');
  assert.equal(data.movementProtocol,'Sync V16.26','live staging must serve movement fix');
@@ -32,6 +33,7 @@ test('isolated V16 staging Worker is alive with reads only and no score writes',
  assert.equal(data.fullJournal,'sqlite-awards-v1','Worker must expose full score journal version');
  assert.equal(data.journalIntegrity,'read-only-v1','Worker must expose private consistency verifier');
  assert.equal(data.adminEnrollment,'pinned-google-uid-v1','Worker is enrolled admin-aware');
+ assert.equal(data.isolatedRecoveryDrill,'synthetic-pitr-v1','Worker must have guarded PITR code');
  assert.equal(health.headers.get('cache-control'),'no-store');
 });
 test('anonymous world reads are denied and score writes stay closed',async()=>{
@@ -67,6 +69,18 @@ test('private journal and score audit are unavailable without authenticated admi
  const editAttempt=await fetch(base,{method:'POST',headers:{'content-type':'application/json'},
   body:'{}',signal:AbortSignal.timeout(15000)});
  assert.equal(editAttempt.status,405,'Admin audit API remains strictly read-only');
+});
+test('synthetic restore is never accessible through an anonymous or unpinned request',async()=>{
+ const legacy=await fetch(BASE+'/api/v16/recovery-drill?scope=free',{
+  signal:AbortSignal.timeout(15000)});
+ assert.equal(legacy.status,404,'public restore endpoint must not exist');
+ const action=await fetch(BASE+'/api/v16/admin/pitr-drill?scope=free',{
+  method:'POST',signal:AbortSignal.timeout(15000)});
+ assert.ok([401,403].includes(action.status),
+  'disabled action is 403, temporarily enabled action requires Google and App Check');
+ assert.ok(!(await action.text()).includes('bookmark'),'no bookmark information can be disclosed');
+ const other=await fetch(BASE+'/api/v16/admin/pitr-drill?scope=free',{signal:AbortSignal.timeout(15000)});
+ assert.ok([403,405].includes(other.status),'PITR is POST-only for authorized users');
 });
 test('anonymous coin race is denied while real Free writes stay disabled',async()=>{
  const [read,join,collect]=await Promise.all([
