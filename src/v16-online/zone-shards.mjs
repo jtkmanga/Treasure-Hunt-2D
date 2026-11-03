@@ -81,16 +81,29 @@ export class V16PresenceZone {
     if(!zoneNamesAround(input.x,input.y).includes(name))
      return json({error:'Requested cell too far'},403);
     const ranked=[],r2=ZONE_VISIBILITY_RADIUS**2;
+    const compare=(a,b)=>a.distance2-b.distance2||a.id.localeCompare(b.id);
+    // Keep at most 24 per shard even when 10K actors occupy one cell.
+    function insertBounded(candidate){
+     if(ranked.length===ZONE_VISIBILITY_CAP&&
+      compare(candidate,ranked.at(-1))>=0)return;
+     let lo=0,hi=ranked.length;
+     while(lo<hi){
+      const mid=(lo+hi)>>1;
+      if(compare(candidate,ranked[mid])<0)hi=mid;
+      else lo=mid+1;
+     }
+     ranked.splice(lo,0,candidate);
+     if(ranked.length>ZONE_VISIBILITY_CAP)ranked.pop();
+    }
     for(const [uid,e] of this.entries){
      if(!isCurrent(e,now))continue;
      const dx=e.x-input.x,dy=e.y-input.y,dist2=dx*dx+dy*dy;
      if(dist2>r2)continue;
-     ranked.push({uid,id:e.alias,x:e.x,y:e.y,
+     insertBounded({uid,id:e.alias,x:e.x,y:e.y,
       epoch:e.epoch,seq:e.seq,at:e.at,distance2:dist2});
     }
     // Each zone sends at most 24 candidates, never all its 10K members.
-    ranked.sort((a,b)=>a.distance2-b.distance2||a.id.localeCompare(b.id));
-    return json({ok:true,records:ranked.slice(0,ZONE_VISIBILITY_CAP)});
+    return json({ok:true,records:ranked});
    }
    if(!['/zone/upsert','/zone/remove'].includes(path))
     return json({error:'Unknown zone action'},404);
