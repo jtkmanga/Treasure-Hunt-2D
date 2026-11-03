@@ -39,7 +39,8 @@ function rig(){
  };
  const tests={
   verifyId:async t=>({uid:t.startsWith('A')?'alice':'bob',
-   provider:'google.com',emailVerified:true,authTime:1760000000}),
+   provider:env.TEST_PROVIDER||'google.com',emailVerified:env.TEST_UNVERIFIED!==true,
+   email:t.startsWith('A')?'alice@example.test':'bob@example.test',authTime:1760000000}),
   verifyApp:async()=>({appId:env.FIREBASE_APP_ID})
  };
  async function call(actor,route,body=null){
@@ -90,9 +91,62 @@ test('private score audit endpoint is disabled by default and never serves unaut
  assert.equal(normal.status,200);
  assert.ok(!JSON.stringify(normal.result).includes('admin-audit-claim-0001'),'raw audit is never on player world view');
 });
+test('admin self-enrollment pins first signed Google UID and never grants other accounts access',async()=>{
+ const t=rig();
+ assert.equal((await t.call('A','admin/status')).status,403,'bootstrap disabled by default');
+ assert.equal((await t.call('A','admin/enroll',{})).status,403,'no public enrollment');
+ t.env.ENABLE_V16_ADMIN_ENROLL='true';
+ assert.equal((await t.call('A','admin/status')).status,403,'admin email secret required');
+ t.env.V16_ADMIN_EMAIL='alice@example.test';
+ assert.equal((await t.call('B','admin/status')).status,403,'nonmatching email cannot query role');
+ assert.equal((await t.call('B','admin/enroll',{})).status,403,'nonmatching email cannot claim Admin');
+ const firstStatus=await t.call('A','admin/status');
+ assert.equal(firstStatus.status,200);
+ assert.deepEqual(firstStatus.result,{ok:true,eligible:true,admin:false,canEnroll:true});
+ assert.equal((await t.call('A','admin/audit')).status,403,'audit read flag stays closed');
+ const activated=await t.call('A','admin/enroll',{});
+ assert.equal(activated.status,200);
+ assert.equal(activated.result.admin,true);
+ assert.equal(activated.result.enrolledNow,true);
+ const uidRecord=t.states.get('v16-private-admin-enrollment-v1').get('v16-admin-enrollment-uid-v1');
+ assert.equal(uidRecord.uid,'alice','UID is stored only in isolated Durable Object');
+ const again=await t.call('A','admin/enroll',{});
+ assert.equal(again.status,200);assert.equal(again.result.enrolledNow,false);
+ assert.equal((await t.call('A','admin/status')).result.admin,true);
+ t.env.ENABLE_V16_ADMIN_READS='true';
+ assert.equal((await t.call('A','admin/audit')).status,200,'pinned Admin can read in authorized Staging');
+ assert.equal((await t.call('B','admin/audit')).status,403,'other accounts remain denied');
+ // Even if an administrator later changes the allowlisted email, the old
+ // enrolled Firebase UID cannot silently be replaced by a different UID.
+ t.env.V16_ADMIN_EMAIL='bob@example.test';
+ assert.equal((await t.call('B','admin/enroll',{})).status,403,'admin ownership cannot be stolen');
+ assert.equal((await t.call('B','admin/audit')).status,403);
+ assert.equal((await t.call('A','admin/audit')).status,403,'changing email secret revokes old account');
+ assert.equal((await t.call('A','admin/status')).status,403);
+ assert.equal((await t.call('A','admin/enroll',{})).status,403);
+});
+test('Admin email bootstrap fails closed on unverified or non-Google Firebase sign-in',async()=>{
+ const t=rig();
+ t.env.ENABLE_V16_ADMIN_ENROLL='true';t.env.V16_ADMIN_EMAIL='alice@example.test';
+ t.env.TEST_UNVERIFIED=true;
+ assert.equal((await t.call('A','admin/status')).status,403);
+ assert.equal((await t.call('A','admin/enroll',{})).status,403);
+ t.env.TEST_UNVERIFIED=false;t.env.TEST_PROVIDER='password';
+ assert.equal((await t.call('A','admin/status')).status,403);
+ assert.equal((await t.call('A','admin/enroll',{})).status,403);
+ t.env.TEST_PROVIDER='google.com';
+ const noToken=await handleV16Request(new Request(BASE+'/api/v16/admin/enroll?scope=free',{method:'POST'}),t.env);
+ assert.equal(noToken.status,401);
+ assert.equal(t.states.has('v16-private-admin-enrollment-v1'),false,
+  'no admin Durable Object storage should be created for rejected requests');
+});
 test('admin panel never enables itself without signed server permission',()=>{
  const page=BETA_LOGIN_PAGE;
  assert.ok(page.includes('id="adminAuditPanel" hidden'));
+ assert.ok(page.includes('id="adminEnrollPanel" hidden'),'self-enrollment must remain hidden to others');
+ assert.ok(page.includes('adminEnrollButton'),'user must explicitly tap to pin Admin UID');
+ assert.ok(page.includes("fetch('/api/v16/admin/enroll?scope=free'"));
+ assert.ok(page.includes("fetch('/api/v16/admin/status?scope=free'"));
  assert.ok(page.includes('const integrity=data.integrity'), 'Admin screen shows verified private consistency state');
  assert.ok(page.includes('const recovery=data.recovery'), 'Admin screen must distinguish PITR verification from tested restore');
  assert.ok(page.includes("res.status===401||res.status===403"));
@@ -211,6 +265,7 @@ test('preview protocol probes actual DO code and never grants anonymous movement
  assert.equal(check.result.freeSeasonPreview,'free-season-v1');
  assert.equal(check.result.scoreAudit,'private-audit-v1');
  assert.equal(check.result.journalIntegrity,'read-only-v1');
+ assert.equal(check.result.adminEnrollment,'pinned-google-uid-v1');
  const unknown=await t.call('A','preview/protocol',{x:1});
  assert.equal(unknown.status,405);
  const old=await t.call('A','preview/move',{dx:100,dy:0});
