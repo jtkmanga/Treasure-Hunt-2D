@@ -44,32 +44,29 @@ test('anonymous world reads are denied and score writes stay closed',async()=>{
  assert.equal(score.status,403);
  assert.match((await score.text()),/Online writes not enabled/);
 });
-test('live Staging admin enrollment remains disabled until explicitly configured',async()=>{
+test('configured Staging admin enrollment still requires signed Google + App Check',async()=>{
  const status=await fetch(BASE+'/api/v16/admin/status?scope=free',{signal:AbortSignal.timeout(15000)});
- assert.equal(status.status,403,'public status must not expose admin identity');
+ assert.equal(status.status,401,'enabled admin status never exposes role without Google token');
+ assert.match(await status.text(),/Google sign-in required/);
  const enroll=await fetch(BASE+'/api/v16/admin/enroll?scope=free',{
   method:'POST',headers:{'content-type':'application/json'},body:'{}',signal:AbortSignal.timeout(15000)
  });
- assert.equal(enroll.status,403,'admin enrollment cannot be triggered without configured role');
+ assert.equal(enroll.status,401,'anonymous users cannot enroll');
+ assert.match(await enroll.text(),/Google sign-in required/);
+ const wrongMethod=await fetch(BASE+'/api/v16/admin/enroll?scope=free',{signal:AbortSignal.timeout(15000)});
+ assert.equal(wrongMethod.status,405,'Admin enrollment is POST-only');
 });
-test('private administrator audit remains closed on public Staging',async()=>{
+test('private journal and score audit are unavailable without authenticated administrator',async()=>{
  const base=BASE+'/api/v16/admin/audit?scope=free&room=preview';
- const blocked=await fetch(base,{signal:AbortSignal.timeout(15000)});
- assert.equal(blocked.status,403,'admin audit must remain disabled without an explicit secret and flag');
- assert.match((await blocked.text()),/Admin audit unavailable/);
- const fromOtherRoom=await fetch(BASE+'/api/v16/admin/audit?scope=free&room=free',
-  {signal:AbortSignal.timeout(15000)});
- assert.equal(fromOtherRoom.status,403);
+ for(const url of [base,BASE+'/api/v16/admin/audit?scope=free&room=free',
+  base+'&beforeId=1']){
+  const response=await fetch(url,{signal:AbortSignal.timeout(15000)});
+  assert.equal(response.status,401,'no public UID, score ledger or PITR bookmark');
+  assert.match(await response.text(),/Google sign-in required/);
+ }
  const editAttempt=await fetch(base,{method:'POST',headers:{'content-type':'application/json'},
   body:'{}',signal:AbortSignal.timeout(15000)});
- assert.equal(editAttempt.status,403,'no admin write operations are enabled');
-});
-test('SQL journal query is not reachable without verified Admin role',async()=>{
- const res=await fetch(BASE+'/api/v16/admin/audit?scope=free&room=preview&beforeId=1',{
-  headers:{'origin':BASE},signal:AbortSignal.timeout(15000)
- });
- assert.equal(res.status,403,'Admin flag remains intentionally disabled on Staging');
- assert.match(await res.text(),/Admin audit unavailable/);
+ assert.equal(editAttempt.status,405,'Admin audit API remains strictly read-only');
 });
 test('anonymous coin race is denied while real Free writes stay disabled',async()=>{
  const [read,join,collect]=await Promise.all([
