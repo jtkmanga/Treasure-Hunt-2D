@@ -5,6 +5,11 @@ on:
     paths:
       - 'scripts/v16-capacity-harness.mjs'
       - 'scripts/v16-zone-capacity.mjs'
+      - 'scripts/v16-cross-do-cost-probe.mjs'
+      - 'src/v16-online/zone-shards.mjs'
+      - 'src/v16-online/zone-transport.mjs'
+      - 'tests/v16-cross-do-shards.test.mjs'
+      - 'tests/v16-zone-transport.test.mjs'
       - 'src/v16-online/zone-presence.mjs'
       - 'tests/v16-zone-presence.test.mjs'
       - 'src/v16-online/incremental-leaderboard.mjs'
@@ -46,7 +51,7 @@ jobs:
         with:
           node-version: '22'
       - name: Safety + correctness tests
-        run: node --test tests/v16-capacity-harness.test.mjs tests/v16-incremental-leaderboard.test.mjs tests/v16-zone-presence.test.mjs
+        run: node --test tests/v16-capacity-harness.test.mjs tests/v16-incremental-leaderboard.test.mjs tests/v16-zone-presence.test.mjs tests/v16-cross-do-shards.test.mjs tests/v16-zone-transport.test.mjs
       - name: Measure offline player room
         run: |
           node scripts/v16-capacity-harness.mjs --players "$ACTORS" --moves 1 --polls 5 --contention 100 > v16-offline-capacity.json
@@ -55,12 +60,19 @@ jobs:
         run: |
           node scripts/v16-zone-capacity.mjs "$ACTORS" > v16-zone-capacity.json
           node --input-type=module -e "import fs from 'node:fs';const d=JSON.parse(fs.readFileSync('v16-zone-capacity.json','utf8'));if(d.networkRequests!==0||d.verifiedRealConcurrentPlayers!==0||d.productionReadyConclusion!==false||d.maxReturnedPlayers>24)process.exit(1);process.stdout.write(JSON.stringify({actors:d.actors,zoneCount:d.zoneCount,queries:d.queries,crossZoneMigrations:d.crossZoneMigrations,queryLatencyMs:d.queryLatencyMs,phaseMs:d.phaseMs},null,2)+'\\n')"
+      - name: Measure offline cross-DO handoff and fan-out budget
+        run: |
+          node scripts/v16-cross-do-cost-probe.mjs "$ACTORS" 200 > v16-cross-do-cost.json
+          node --input-type=module -e "import fs from 'node:fs';const d=JSON.parse(fs.readFileSync('v16-cross-do-cost.json','utf8'));if(d.networkRequests!==0||d.verifiedRealConcurrentPlayers!==0||d.productionReadyConclusion!==false||d.actualCloudflareDORuns!==0||d.maxPlayersReturned>24||d.transport.deadlineCount>0)process.exit(1);process.stdout.write(JSON.stringify({actors:d.simulatedPlayers,zoneDOs:d.syntheticZoneInstances,internalCalls:d.transport.requestCount,peakFanout:d.transport.peakInFlight,p99Ms:d.transport.latency.p99Ms},null,2)+'\\n')"
       - name: Write job summary
         run: |
           node --input-type=module -e "import fs from 'node:fs';const d=JSON.parse(fs.readFileSync('v16-offline-capacity.json','utf8'));fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'## V16 Offline Capacity Report\\n\\n- Synthetic actors: **'+d.simulatedPlayers+'**\\n- Median join latency (in-process): **'+d.latencyMs.join.p50Ms+' ms**\\n- P99 join latency: **'+d.latencyMs.join.p99Ms+' ms**\\n- Total elapsed: **'+d.durationMs.total+' ms**\\n- Serialized snapshot: **'+d.memoryKiB.serializedSnapshot+' KiB**\\n- Real concurrent users verified: **0**\\n\\n**Not a real Cloudflare 10K load test or production approval.**\\n')"
       - name: Write zone report summary
         run: |
           node --input-type=module -e "import fs from 'node:fs';const d=JSON.parse(fs.readFileSync('v16-zone-capacity.json','utf8'));fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\\n## V16 Offline Zone Proximity Report\\n\\n- Synthetic actors: **'+d.actors+'**\\n- Nearby queries: **'+d.queries+'**\\n- Cross-zone updates: **'+d.crossZoneMigrations+'**\\n- P99 in-process proximity lookup: **'+d.queryLatencyMs.p99+' ms**\\n- Max returned per viewer: **'+d.maxReturnedPlayers+'** (cap 24)\\n\\n**Not cross-DO sharding or proven real concurrency.**\\n')"
+      - name: Write cross-DO budget summary
+        run: |
+          node --input-type=module -e "import fs from 'node:fs';const d=JSON.parse(fs.readFileSync('v16-cross-do-cost.json','utf8'));fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\\n## V16 Synthetic Cross-DO Cost Envelope\\n\\n- Actors: **'+d.simulatedPlayers+'**\\n- Zone instances: **'+d.syntheticZoneInstances+'**\\n- Simulated DO subrequests: **'+d.transport.requestCount+'**\\n- Peak fanout: **'+d.transport.peakInFlight+'**\\n- Internal p99 latency: **'+d.transport.latency.p99Ms+' ms**\\n- Real Cloudflare DO requests: **0**\\n\\n**Not actual network latency, Cloudflare cost or proven 10K online concurrency.**\\n')"
       - name: Upload synthetic report
         uses: actions/upload-artifact@v4
         with:
@@ -68,4 +80,5 @@ jobs:
           path: |
             v16-offline-capacity.json
             v16-zone-capacity.json
+            v16-cross-do-cost.json
           retention-days: 7
