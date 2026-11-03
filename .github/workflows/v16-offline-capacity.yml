@@ -1,0 +1,56 @@
+name: V16 Offline Capacity Probe (No Chromium / No Network)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/v16-capacity-harness.mjs'
+      - 'tests/v16-capacity-harness.test.mjs'
+      - 'package.json'
+      - '.github/workflows/v16-offline-capacity.yml'
+  workflow_dispatch:
+    inputs:
+      players:
+        description: 'Synthetic actors, NOT real live concurrent players'
+        type: choice
+        required: true
+        default: '100'
+        options:
+          - '100'
+          - '1000'
+          - '10000'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v16-offline-capacity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  local-room-benchmark:
+    name: Simulate V16 world without network
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_OPTIONS: '--max-old-space-size=4096'
+      ACTORS: ${{ github.event_name == 'workflow_dispatch' && inputs.players || '100' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Safety + correctness tests
+        run: node --test tests/v16-capacity-harness.test.mjs
+      - name: Measure offline player room
+        run: |
+          node scripts/v16-capacity-harness.mjs --players "$ACTORS" --moves 1 --polls 5 --contention 100 > v16-offline-capacity.json
+          node --input-type=module -e "import fs from 'node:fs';const d=JSON.parse(fs.readFileSync('v16-offline-capacity.json','utf8'));if(d.networkRequests!==0||d.verifiedRealConcurrentPlayers!==0||d.productionReadyConclusion!==false)process.exit(1);process.stdout.write(JSON.stringify({actors:d.simulatedPlayers,phaseMs:d.durationMs,latency:d.latencyMs,heapKiB:d.memoryKiB},null,2)+'\\n')"
+      - name: Write job summary
+        run: |
+          node --input-type=module -e "import fs from 'node:fs';const d=JSON.parse(fs.readFileSync('v16-offline-capacity.json','utf8'));fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'## V16 Offline Capacity Report\\n\\n- Synthetic actors: **'+d.simulatedPlayers+'**\\n- Median join latency (in-process): **'+d.latencyMs.join.p50Ms+' ms**\\n- P99 join latency: **'+d.latencyMs.join.p99Ms+' ms**\\n- Total elapsed: **'+d.durationMs.total+' ms**\\n- Serialized snapshot: **'+d.memoryKiB.serializedSnapshot+' KiB**\\n- Real concurrent users verified: **0**\\n\\n**Not a real Cloudflare 10K load test or production approval.**\\n')"
+      - name: Upload synthetic report
+        uses: actions/upload-artifact@v4
+        with:
+          name: v16-offline-capacity-${{ env.ACTORS }}
+          path: v16-offline-capacity.json
+          retention-days: 7
