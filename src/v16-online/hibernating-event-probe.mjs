@@ -75,7 +75,9 @@ export class V16HibernatingPresenceProbe {
   if(packet.seq!==session.seq+1){
    ws.send(JSON.stringify({ok:false,error:'Event sequence mismatch'}));return;
   }
-  if(session.seq>0&&now-session.at<EVENT_INPUT_MIN_GAP_MS){
+  const emergencyStop=packet.type==='stop'&&
+   (session.axes[0]!==0||session.axes[1]!==0);
+  if(session.seq>0&&now-session.at<EVENT_INPUT_MIN_GAP_MS&&!emergencyStop){
    ws.send(JSON.stringify({ok:false,error:'Event rate limited'}));return;
   }
   const expired=now-session.at>EVENT_INPUT_MAX_INTERVAL_MS;
