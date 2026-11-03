@@ -52,7 +52,14 @@ export class EventDrivenMobileInput{
  }
  stop(now){
   if(!validTime(now))throw Error('Invalid input clock');
-  this.desired=[0,0];return this.tick(now);
+  if(this.lastSendAt!==null&&now<this.lastSendAt)
+   throw Error('Nonmonotonic input clock');
+  this.desired=[0,0];
+  // Backgrounding the mobile browser can suspend animation frames. An
+  // emergency STOP may not wait for the next tick; the server allows this
+  // one transition immediately but still rate-limits repeated idle STOPs.
+  if(!idle(this.current))return this._emit('stop',now,[0,0]);
+  return this.tick(now);
  }
  resetAfterReconnect(){
   // Requires a fresh validated server epoch/nonce, never replay old sequence.
