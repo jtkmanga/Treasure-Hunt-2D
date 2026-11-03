@@ -2,6 +2,7 @@
 // No browser, payment, or direct account-token handling here.
 import {makeForestMapV17} from './forest-map-v17.mjs';
 import {periodFor} from './periods.mjs';
+import {IncrementalLeaderboard} from './incremental-leaderboard.mjs';
 export const WORLD_VERSION='v16-forest-100';
 export const COIN_RESPAWN_MS=60_000;
 export const CHEST_RESPAWN_MS=4*60*60_000;
@@ -29,7 +30,10 @@ export class V16Room {
   this.period=periodFor(scope,now).periodId;
   this.coinReadyAt=Array(200).fill(0);
   this.chest={x:this.map.chest.x,y:this.map.chest.y,readyAt:0};
-  this.scores=new Map();this.names=new Map();this.players=new Map();this.winners=[];
+  // Index is derived, never persisted; canonical Maps retain existing schema.
+  this.ranking=new IncrementalLeaderboard([],[],publicNickname);
+  this.scores=this.ranking.scores;this.names=this.ranking.names;
+  this.players=new Map();this.winners=[];
   this.claimIds=new Map();this.claimSequences=new Map();this.version=0;
   this.auditEvents=[];this.auditNextId=1;
  }
@@ -40,7 +44,9 @@ export class V16Room {
   room.coinReadyAt=data.coinReadyAt;
   ensure(data.chest&&Number.isFinite(data.chest.x)&&Number.isFinite(data.chest.y)&&Number.isSafeInteger(data.chest.readyAt),'Corrupt chest state');
   room.chest={...data.chest};
-  room.period=data.period;room.scores=new Map(data.scores);room.names=new Map(data.names);
+  room.period=data.period;
+  room.ranking=new IncrementalLeaderboard(data.scores,data.names,publicNickname);
+  room.scores=room.ranking.scores;room.names=room.ranking.names;
   room.winners=data.winners||[];room.version=data.version||0;
   room.claimIds=new Map((data.claimIds||[]).map(([uid,ids])=>[uid,new Map(ids)]));
   room.claimSequences=new Map(data.claimSequences||[]);
@@ -77,10 +83,13 @@ export class V16Room {
  join(uid,now,label='Hunter'){validUid(uid);validNow(now);this.rollover(now);
   if(!this.players.has(uid))this.players.set(uid,{...this.map.spawn,lastAt:now});
   const firstJoin=!this.scores.has(uid);
-  if(firstJoin)this.scores.set(uid,0);
   const newName=publicNickname(label);
-  if(firstJoin||this.names.get(uid)!==newName)this.version++;
+  const nameChanged=firstJoin||this.names.get(uid)!==newName;
+  // Add the name before first score entry so a new join enters top-20
+  // only once (and with its final label).
   this.names.set(uid,newName);
+  if(firstJoin)this.scores.set(uid,0);
+  if(nameChanged)this.version++;
   return this.privateView(uid,now);
  }
  requirePlayer(uid){validUid(uid);const p=this.players.get(uid);ensure(p,'Player not joined');return p}
@@ -199,9 +208,7 @@ export class V16Room {
    entries:this.auditEvents.slice(-limit).reverse().map(e=>({...e})),
    note:'Recent staging audit only; not complete public ledger'};
  }
- leaders(count=20){return [...this.scores.entries()]
-  .sort(([a,x],[b,y])=>y-x||(this.names.get(a)||a).localeCompare(this.names.get(b)||b))
-  .slice(0,count).map(([uid,score],i)=>({rank:i+1,name:publicNickname(this.names.get(uid)),score}));}
+ leaders(count=20){return this.ranking.leaders(count);}
  // Safe public season snapshot: no UID, email, receipts or admin history.
  seasonStatus(now){
   validNow(now);
