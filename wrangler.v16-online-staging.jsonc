@@ -6,6 +6,7 @@
   "workers_dev": true,
   "vars": {
     "ENABLE_V16_WRITES": "false",
+    "ENABLE_V16_RECOVERY_DRILL": "false",
     "ENABLE_V16_ADMIN_READS": "false",
     "ENABLE_V16_ADMIN_ENROLL": "false",
     "ENABLE_V16_PILOT_WRITES": "true",
