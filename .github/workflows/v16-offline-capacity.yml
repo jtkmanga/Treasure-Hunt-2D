@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - 'scripts/v16-capacity-harness.mjs'
+      - 'scripts/v16-zone-capacity.mjs'
+      - 'src/v16-online/zone-presence.mjs'
+      - 'tests/v16-zone-presence.test.mjs'
       - 'src/v16-online/incremental-leaderboard.mjs'
       - 'src/v16-online/room.mjs'
       - 'tests/v16-incremental-leaderboard.test.mjs'
@@ -43,17 +46,26 @@ jobs:
         with:
           node-version: '22'
       - name: Safety + correctness tests
-        run: node --test tests/v16-capacity-harness.test.mjs tests/v16-incremental-leaderboard.test.mjs
+        run: node --test tests/v16-capacity-harness.test.mjs tests/v16-incremental-leaderboard.test.mjs tests/v16-zone-presence.test.mjs
       - name: Measure offline player room
         run: |
           node scripts/v16-capacity-harness.mjs --players "$ACTORS" --moves 1 --polls 5 --contention 100 > v16-offline-capacity.json
           node --input-type=module -e "import fs from 'node:fs';const d=JSON.parse(fs.readFileSync('v16-offline-capacity.json','utf8'));if(d.networkRequests!==0||d.verifiedRealConcurrentPlayers!==0||d.productionReadyConclusion!==false)process.exit(1);process.stdout.write(JSON.stringify({actors:d.simulatedPlayers,phaseMs:d.durationMs,latency:d.latencyMs,heapKiB:d.memoryKiB},null,2)+'\\n')"
+      - name: Measure offline 10K zone locality
+        run: |
+          node scripts/v16-zone-capacity.mjs "$ACTORS" > v16-zone-capacity.json
+          node --input-type=module -e "import fs from 'node:fs';const d=JSON.parse(fs.readFileSync('v16-zone-capacity.json','utf8'));if(d.networkRequests!==0||d.verifiedRealConcurrentPlayers!==0||d.productionReadyConclusion!==false||d.maxReturnedPlayers>24)process.exit(1);process.stdout.write(JSON.stringify({actors:d.actors,zoneCount:d.zoneCount,queries:d.queries,crossZoneMigrations:d.crossZoneMigrations,queryLatencyMs:d.queryLatencyMs,phaseMs:d.phaseMs},null,2)+'\\n')"
       - name: Write job summary
         run: |
           node --input-type=module -e "import fs from 'node:fs';const d=JSON.parse(fs.readFileSync('v16-offline-capacity.json','utf8'));fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'## V16 Offline Capacity Report\\n\\n- Synthetic actors: **'+d.simulatedPlayers+'**\\n- Median join latency (in-process): **'+d.latencyMs.join.p50Ms+' ms**\\n- P99 join latency: **'+d.latencyMs.join.p99Ms+' ms**\\n- Total elapsed: **'+d.durationMs.total+' ms**\\n- Serialized snapshot: **'+d.memoryKiB.serializedSnapshot+' KiB**\\n- Real concurrent users verified: **0**\\n\\n**Not a real Cloudflare 10K load test or production approval.**\\n')"
+      - name: Write zone report summary
+        run: |
+          node --input-type=module -e "import fs from 'node:fs';const d=JSON.parse(fs.readFileSync('v16-zone-capacity.json','utf8'));fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\\n## V16 Offline Zone Proximity Report\\n\\n- Synthetic actors: **'+d.actors+'**\\n- Nearby queries: **'+d.queries+'**\\n- Cross-zone updates: **'+d.crossZoneMigrations+'**\\n- P99 in-process proximity lookup: **'+d.queryLatencyMs.p99+' ms**\\n- Max returned per viewer: **'+d.maxReturnedPlayers+'** (cap 24)\\n\\n**Not cross-DO sharding or proven real concurrency.**\\n')"
       - name: Upload synthetic report
         uses: actions/upload-artifact@v4
         with:
           name: v16-offline-capacity-${{ env.ACTORS }}
-          path: v16-offline-capacity.json
+          path: |
+            v16-offline-capacity.json
+            v16-zone-capacity.json
           retention-days: 7
