@@ -14,13 +14,13 @@ function reference(scores,names,count=20){
   .sort(([a,x],[b,y])=>y-x||(names.get(a)||a).localeCompare(names.get(b)||b))
   .slice(0,count).map(([uid,score],i)=>({rank:i+1,name:safeName(names.get(uid)),score}));
 }
-function equal(room,message=''){
+function equal(room,message='',now=START+100){
  for(const n of [0,1,2,5,20,21,50,-1]){
   assert.deepEqual(room.leaders(n),reference(room.scores,room.names,n),
    'Exact ranking must match legacy full sort '+message+' count='+n);
  }
  assert.ok(room.ranking.top.length<=20,'only 20 UIDs may be cached');
- assert.ok(!JSON.stringify(room.publicView(START+100)).includes('test-private-uid'),
+ assert.ok(!JSON.stringify(room.publicView(now)).includes('test-private-uid'),
   'public list must never expose any Firebase UIDs');
 }
 function rng(seed=20261103){
@@ -108,7 +108,7 @@ test('Free weekly and VIP daily winner snapshot still exact across rollover',()=
   assert.deepEqual(room.leaders(),[]);
   room.join('test-private-uid-4',at+20,'Returning');
   assert.deepEqual(room.leaders(),[{rank:1,name:'Returning',score:0}]);
-  equal(room,'new season');
+  equal(room,'new season',at+30);
  }
 });
 test('incremental leaderboard can reconstruct 10K canonical ranks with bounded cached list',()=>{
