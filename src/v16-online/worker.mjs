@@ -15,6 +15,15 @@ const SCOPES={free:'free1',vip:'vip1',free1:'free1',vip1:'vip1'};
 const PILOT_ROOM='free1-coin-race-pilot-v1';
 // World-accurate playable forest lives in a third DO, never Free ranked state.
 const PREVIEW_ROOM='free1-forest-game-preview-v1';
+// Isolated role anchor, pinned to the FIRST verified administrator's Firebase UID.
+const ADMIN_ROLE_ROOM='v16-private-admin-enrollment-v1';
+const ADMIN_ROLE_KEY='v16-admin-enrollment-uid-v1';
+function adminEmailEligible(identity,env){
+ const allowed=env.V16_ADMIN_EMAIL;
+ return typeof allowed==='string'&&allowed.length>=5&&allowed.length<=320&&
+  typeof identity?.email==='string'&&identity.emailVerified===true&&
+  identity.provider==='google.com'&&identity.email.toLowerCase()===allowed.toLowerCase();
+}
 // Explicit Staging page origin. Browsers send Origin on same-origin POSTs;
 // the older CORS policy only accepted the separate GitHub Pages frontend.
 const STAGING_ORIGIN='https://treasure-hunt-2d-v16-world-staging.hjinffv5426.workers.dev';
@@ -50,7 +59,7 @@ export async function handleV16Request(req,env,testing={}){
    ...headers,
   }});
  }
- if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',movementProtocol:'Sync V16.26',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',journalIntegrity:'read-only-v1',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
+ if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',movementProtocol:'Sync V16.26',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',journalIntegrity:'read-only-v1',adminEnrollment:'pinned-google-uid-v1',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
  // Staging-only read-only probe checks the *actual Durable Object code*.
  // The public Worker health marker alone cannot detect deferred DO upgrades.
  // A shared rate limit prevents this diagnostic from becoming an unbounded DO.
@@ -71,18 +80,25 @@ export async function handleV16Request(req,env,testing={}){
  if(!scope)return json({error:'Invalid server'},400,headers);
  // Private admin audit: disabled unless an explicit UID secret and flag exist.
  const auditRead=url.pathname==='/api/v16/admin/audit';
+ const adminStatus=url.pathname==='/api/v16/admin/status';
+ const adminEnroll=url.pathname==='/api/v16/admin/enroll';
+ const roleRoute=adminStatus||adminEnroll;
  const auditRoom=url.searchParams.get('room')||'preview';
  if(auditRead&&(!['preview','free'].includes(auditRoom)||scope!=='free1'))
   return json({error:'Invalid audit room'},400,headers);
+ if(roleRoute&&(scope!=='free1'||env.ENABLE_V16_ADMIN_ENROLL!=='true'||
+  typeof env.V16_ADMIN_EMAIL!=='string'||!env.V16_ADMIN_EMAIL))
+  return json({error:'Admin enrollment unavailable'},403,headers);
  if(auditRead&&(env.ENABLE_V16_ADMIN_READS!=='true'||
-  typeof env.V16_ADMIN_UID!=='string'||!env.V16_ADMIN_UID))
+  !(typeof env.V16_ADMIN_UID==='string'&&env.V16_ADMIN_UID||
+    env.ENABLE_V16_ADMIN_ENROLL==='true'&&typeof env.V16_ADMIN_EMAIL==='string'&&env.V16_ADMIN_EMAIL)))
   return json({error:'Admin audit unavailable'},403,headers);
  const pilotMatch=/^\/api\/v16\/pilot\/(world|join|collect)$/.exec(url.pathname);
  const previewMatch=/^\/api\/v16\/preview\/(world|join|move|collect)$/.exec(url.pathname);
  const pilot=!!pilotMatch,preview=!!previewMatch;
- if(!pilot&&!preview&&!auditRead&&!['/api/v16/auth-check','/api/v16/world','/api/v16/join','/api/v16/move','/api/v16/collect'].includes(url.pathname))return json({error:'Not found'},404,headers);
+ if(!pilot&&!preview&&!auditRead&&!roleRoute&&!['/api/v16/auth-check','/api/v16/world','/api/v16/join','/api/v16/move','/api/v16/collect'].includes(url.pathname))return json({error:'Not found'},404,headers);
  const authCheck=url.pathname==='/api/v16/auth-check';
- const read=auditRead||url.pathname==='/api/v16/world'||(pilot&&pilotMatch[1]==='world')||(preview&&previewMatch[1]==='world');
+ const read=auditRead||adminStatus||url.pathname==='/api/v16/world'||(pilot&&pilotMatch[1]==='world')||(preview&&previewMatch[1]==='world');
  if(req.method!==((read||authCheck)?'GET':'POST'))return json({error:'Method not allowed'},405,headers);
  // Pilot runs in an entirely separate DO with its own, non-public scores.
  // Never loosen the production Free-world write gate for a beta experiment.
@@ -92,9 +108,9 @@ export async function handleV16Request(req,env,testing={}){
   return json({error:'Isolated game preview not enabled'},403,headers);
  // World polling is opt-in on staging: public traffic to a DO costs CPU/storage.
  if(!pilot&&!preview&&!authCheck&&read&&env.ENABLE_V16_READS!=='true')return json({error:'World reads not enabled'},403,headers);
- if(!pilot&&!preview&&!authCheck&&!read&&env.ENABLE_V16_WRITES!=='true')return json({error:'Online writes not enabled'},403,headers);
+ if(!pilot&&!preview&&!authCheck&&!read&&!adminEnroll&&env.ENABLE_V16_WRITES!=='true')return json({error:'Online writes not enabled'},403,headers);
  if(!authCheck&&(!env.ROOMS?.idFromName||!env.ROOMS?.get))return json({error:'World storage not configured'},503,headers);
- let uid=null,input={};
+ let uid=null,input={},verifiedIdentity=null;
  // Closed-beta world snapshots carry live scores and cause Durable Object reads.
  // Treat reads as authenticated, rate-limited requests, not a public shortcut.
  {
@@ -104,15 +120,14 @@ export async function handleV16Request(req,env,testing={}){
   if(!match)return json({error:'Google sign-in required'},401,headers);
   try{
    const identity=await (testing.verifyId||verifyFirebaseIdToken)(match[1],env.FIREBASE_PROJECT_ID);
-   uid=identity.uid;
-   if(auditRead&&uid!==env.V16_ADMIN_UID)return json({error:'Admin access denied'},403,headers);
+   uid=identity.uid;verifiedIdentity=identity;
    if(typeof uid!=='string'||uid.length<1||uid.length>128)throw Error('Invalid verified UID');
    await (testing.verifyApp||verifyAppCheck)(req.headers.get('x-firebase-appcheck'),env.FIREBASE_PROJECT_NUMBER,env.FIREBASE_APP_ID);
    // One invitation per stable Firebase UID, enforced on every authenticated route.
    // Missing/invalid allowlists deny everyone (including admin users).
    if(!authorizeClosedBeta(identity,env).allowed)
     return json({error:'Closed Beta invitation required'},403,headers);
-   const limit=await env.V16_RATE_LIMITER.limit({key:(authCheck?'auth:':auditRead?'admin-audit:':pilot?'pilot:':preview?'preview:':read?'world:':'write:')+uid});
+   const limit=await env.V16_RATE_LIMITER.limit({key:(authCheck?'auth:':roleRoute?'admin-role:':auditRead?'admin-audit:':pilot?'pilot:':preview?'preview:':read?'world:':'write:')+uid});
    if(!limit?.success)return json({error:'Too many requests'},429,headers);
    let person;
    try{
@@ -130,8 +145,33 @@ export async function handleV16Request(req,env,testing={}){
    if(person?.uid!==uid||person.disabled!==false||person.revoked!==false)
     return json({error:'Account not permitted'},403,headers);
    if(scope==='vip1')return json({error:'VIP verification pending'},403,headers);
-   if(!read&&!authCheck)input=await bodyJSON(req);
+   if(!read&&!authCheck&&!adminEnroll)input=await bodyJSON(req);
   }catch{return json({error:'Authentication, App Check or account validation failed'},401,headers);}
+ }
+ // Admin enrollment is a separate, non-score action. The caller must have
+ // signed Google/Firebase ID, verified email, App Check, live account and invitation.
+ // The Worker never trusts client-supplied UID or email in a request body.
+ if(roleRoute||auditRead){
+  const legacyAudit=!!(auditRead&&typeof env.V16_ADMIN_UID==='string'&&
+   env.V16_ADMIN_UID.length>0&&uid===env.V16_ADMIN_UID);
+  if(!legacyAudit){
+   if(env.ENABLE_V16_ADMIN_ENROLL!=='true'||!adminEmailEligible(verifiedIdentity,env))
+    return json({error:'Admin access denied'},403,headers);
+   try{
+    const roleStub=env.ROOMS.get(env.ROOMS.idFromName(ADMIN_ROLE_ROOM));
+    const roleResp=await roleStub.fetch(new Request('https://internal/admin-role',{
+     method:adminEnroll?'POST':'GET',
+     headers:{'x-internal-scope':'free1','x-internal-uid':uid,'x-internal-admin-verified':'1'}
+    }));
+    const result=await roleResp.json();
+    if(!roleResp.ok)return json({error:'Administrator already assigned or unavailable'},roleResp.status,headers);
+    if(adminStatus)return json({ok:true,eligible:true,admin:result.admin===true,
+     canEnroll:result.canEnroll===true},200,headers);
+    if(adminEnroll)return json({ok:true,admin:result.admin===true,
+     enrolledNow:result.created===true},200,headers);
+    if(result.admin!==true)return json({error:'Admin enrollment required'},403,headers);
+   }catch{return json({error:'Admin enrollment service unavailable'},503,headers)}
+  }
  }
  // Auth probe never accesses a Durable Object, exposes a UID/email or grants points.
  if(authCheck)return json({ok:true,googleVerified:true,appCheckVerified:true,accountActive:true,betaInvited:true,scope:'free',writesEnabled:false},200,headers);
@@ -176,6 +216,24 @@ export class V16WorldRoom {
    if(!this.room)this.room=new V16Room(scope);
    if(this.room.scope!==scope)return json({error:'Scope mismatch'},403);
    if(this.storageBlocked)return json({error:'World storage recovery required'},503);
+   if(new URL(req.url).pathname==='/admin-role'){
+    if(req.headers.get('x-internal-admin-verified')!=='1'||
+     !req.headers.get('x-internal-uid'))return json({error:'Unauthorized role access'},403);
+    const uid=req.headers.get('x-internal-uid');
+    if(typeof uid!=='string'||uid.length>128)return json({error:'Invalid verified UID'},403);
+    try{
+     const bound=await this.state.storage.get(ADMIN_ROLE_KEY);
+     if(bound!==undefined&&(!bound||typeof bound.uid!=='string'))return json({error:'Corrupt admin role'},503);
+     if(bound&&bound.uid!==uid)return json({error:'Admin assigned to another identity'},403);
+     if(req.method==='GET')return json({admin:!!bound,canEnroll:!bound});
+     if(req.method!=='POST')return json({error:'Unsupported role method'},405);
+     if(!bound){
+      await this.state.storage.put(ADMIN_ROLE_KEY,{uid,enrolledAt:Date.now(),schema:1});
+      return json({admin:true,created:true});
+     }
+     return json({admin:true,created:false});
+    }catch{return json({error:'Admin role storage unavailable'},503)}
+   }
     if(req.method==='GET'&&new URL(req.url).pathname==='/admin-audit'){
      if(req.headers.get('x-internal-admin-audit')!=='1'||!req.headers.get('x-internal-uid'))
       return json({error:'Unauthorized admin audit'},403);
