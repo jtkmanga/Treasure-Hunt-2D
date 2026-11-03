@@ -47,6 +47,16 @@ test('mobile sender emits start/change/stop on direction changes and no idle hea
  assert.equal(sent.length,4,'a stopped player must not use paid heartbeat frames');
  assert.deepEqual(sent.map(x=>x.seq),[1,2,3,4]);
 });
+test('mobile tab background sends immediate stop without waiting for next animation frame',()=>{
+ const frames=[],client=new EventDrivenMobileInput(raw=>frames.push(JSON.parse(raw)));
+ client.onInput([100,0],1000);
+ const stopped=client.stop(1005);
+ assert.equal(stopped.type,'stop');
+ assert.equal(stopped.seq,2);
+ client.tick(1_000_000);
+ assert.equal(frames.length,2);
+ assert.deepEqual(frames.map(x=>x.type),['start','stop']);
+});
 test('event-driven mobile packets can be replayed through canonical server without duplicate movement',()=>{
  const now=Date.parse('2026-11-03T10:00:00Z');
  const room=new V16Room('free1',now,()=>0);
