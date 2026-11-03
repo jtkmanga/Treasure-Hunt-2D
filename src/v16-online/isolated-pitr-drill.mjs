@@ -37,6 +37,27 @@ export async function isolatedPitrDo(req,state){
  const storage=state.storage;
  if(!checkStorage(storage))return json({error:'PITR storage capability missing'},503);
  try{
+  // Admin-only diagnostic: reads both synthetic SQL and KV without
+  // creating any checkpoint, modifying data or certifying a restore.
+  if(path==='/pitr/status'){
+   const completed=!!storage.kv.get(COMPLETE);
+   let view;
+   try{view=readSnapshot(storage)}
+   catch(error){
+    if(/no such table: v16_pitr_synthetic_probe/i.test(String(error?.message||error)))
+     return json({ok:true,status:'not-started',verifiedRestore:false});
+    return json({error:'Synthetic recovery state unreadable'},503);
+   }
+   const baseline=matches(view,BASE_SCORE,'baseline');
+   const changed=matches(view,CHANGED_SCORE,'mutated');
+   const status=completed&&baseline?'completed':
+    completed?'completed-marker-mismatch':
+    baseline?'baseline-unverified':
+    changed?'changed-unverified':'state-mismatch';
+   return json({ok:true,status,verifiedRestore:status==='completed',
+    sqlScore:view.sqlScore,kvScore:view.kvScore,
+    sqlAndKvConsistent:view.sqlScore===view.kvScore&&view.sqlMarker===view.kvMarker});
+  }
   if(path==='/pitr/prepare'){
    if(storage.kv.get(COMPLETE)){
     const view=readSnapshot(storage);
