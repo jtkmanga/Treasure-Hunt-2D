@@ -44,17 +44,17 @@ test('anonymous world reads are denied and score writes stay closed',async()=>{
  assert.equal(score.status,403);
  assert.match((await score.text()),/Online writes not enabled/);
 });
-test('configured Staging admin enrollment still requires signed Google + App Check',async()=>{
+test('Staging enrollment is locked while authenticated pinned-admin status can still work',async()=>{
  const status=await fetch(BASE+'/api/v16/admin/status?scope=free',{signal:AbortSignal.timeout(15000)});
- assert.equal(status.status,401,'enabled admin status never exposes role without Google token');
+ assert.equal(status.status,401,'admin status requires Google token and App Check');
  assert.match(await status.text(),/Google sign-in required/);
  const enroll=await fetch(BASE+'/api/v16/admin/enroll?scope=free',{
   method:'POST',headers:{'content-type':'application/json'},body:'{}',signal:AbortSignal.timeout(15000)
  });
- assert.equal(enroll.status,401,'anonymous users cannot enroll');
- assert.match(await enroll.text(),/Google sign-in required/);
+ assert.equal(enroll.status,403,'all additional enrollment attempts are blocked');
+ assert.match(await enroll.text(),/Admin enrollment unavailable/);
  const wrongMethod=await fetch(BASE+'/api/v16/admin/enroll?scope=free',{signal:AbortSignal.timeout(15000)});
- assert.equal(wrongMethod.status,405,'Admin enrollment is POST-only');
+ assert.equal(wrongMethod.status,403,'disabled registration is closed regardless of method');
 });
 test('private journal and score audit are unavailable without authenticated administrator',async()=>{
  const base=BASE+'/api/v16/admin/audit?scope=free&room=preview';

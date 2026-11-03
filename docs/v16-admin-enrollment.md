@@ -14,6 +14,8 @@
 
 - Source control defaults: `ENABLE_V16_ADMIN_READS=false`, `ENABLE_V16_ADMIN_ENROLL=false`. No hardcoded owner email or actual UID.
 - To enable for the single intended administrator, set `V16_ADMIN_EMAIL` as a Cloudflare Worker secret, allow `ENABLE_V16_ADMIN_ENROLL=true` and `ENABLE_V16_ADMIN_READS=true` **on Staging only**, then have the owner sign in and explicitly tap the enrollment button.
+- **After the owner has enrolled and successfully viewed their Audit, set only `ENABLE_V16_ADMIN_ENROLL=false`**, leaving `ENABLE_V16_ADMIN_READS=true` and `V16_ADMIN_EMAIL` unchanged. The locked Firebase UID in the role Durable Object remains valid for read-only Audit; anonymous/new enrollment remains 403. Owner read-only Admin status remains available for signed-in checks.
+- Test after locking: `GET /admin/status` with no token returns 401; `POST /admin/enroll` even with no token returns 403; `GET /admin/audit` without token returns 401. For the actual owner, signed-in `admin/status` returns `admin:true, canEnroll:false`, and Audit remains readable. No secret values or raw Audit should be placed in CI logs.
 - If ever in doubt, disable `ENABLE_V16_ADMIN_READS` immediately. Also disable enrollment if Google access is compromised. To reassign to a new UID, do not bypass the pin: use a documented, authorized security recovery procedure, preserve the old Audit evidence, and require fresh owner approval. **There is no public reassignment API.**
 - The enrolled Admin can **only read** the existing score-journal, integrity, and non-destructive PITR readiness. No score edits, score resets, VIP subscription changes, payments, or Production write flags are offered.
 

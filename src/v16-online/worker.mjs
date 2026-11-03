@@ -86,12 +86,12 @@ export async function handleV16Request(req,env,testing={}){
  const auditRoom=url.searchParams.get('room')||'preview';
  if(auditRead&&(!['preview','free'].includes(auditRoom)||scope!=='free1'))
   return json({error:'Invalid audit room'},400,headers);
- if(roleRoute&&(scope!=='free1'||env.ENABLE_V16_ADMIN_ENROLL!=='true'||
+ if(roleRoute&&(scope!=='free1'||(adminEnroll&&env.ENABLE_V16_ADMIN_ENROLL!=='true')||
   typeof env.V16_ADMIN_EMAIL!=='string'||!env.V16_ADMIN_EMAIL))
   return json({error:'Admin enrollment unavailable'},403,headers);
  if(auditRead&&(env.ENABLE_V16_ADMIN_READS!=='true'||
   !(typeof env.V16_ADMIN_UID==='string'&&env.V16_ADMIN_UID||
-    env.ENABLE_V16_ADMIN_ENROLL==='true'&&typeof env.V16_ADMIN_EMAIL==='string'&&env.V16_ADMIN_EMAIL)))
+    typeof env.V16_ADMIN_EMAIL==='string'&&env.V16_ADMIN_EMAIL)))
   return json({error:'Admin audit unavailable'},403,headers);
  const pilotMatch=/^\/api\/v16\/pilot\/(world|join|collect)$/.exec(url.pathname);
  const previewMatch=/^\/api\/v16\/preview\/(world|join|move|collect)$/.exec(url.pathname);
@@ -155,7 +155,8 @@ export async function handleV16Request(req,env,testing={}){
   const legacyAudit=!!(auditRead&&typeof env.V16_ADMIN_UID==='string'&&
    env.V16_ADMIN_UID.length>0&&uid===env.V16_ADMIN_UID);
   if(!legacyAudit){
-   if(env.ENABLE_V16_ADMIN_ENROLL!=='true'||!adminEmailEligible(verifiedIdentity,env))
+   if(!adminEmailEligible(verifiedIdentity,env)||
+     adminEnroll&&env.ENABLE_V16_ADMIN_ENROLL!=='true')
     return json({error:'Admin access denied'},403,headers);
    try{
     const roleStub=env.ROOMS.get(env.ROOMS.idFromName(ADMIN_ROLE_ROOM));
@@ -166,7 +167,7 @@ export async function handleV16Request(req,env,testing={}){
     const result=await roleResp.json();
     if(!roleResp.ok)return json({error:'Administrator already assigned or unavailable'},roleResp.status,headers);
     if(adminStatus)return json({ok:true,eligible:true,admin:result.admin===true,
-     canEnroll:result.canEnroll===true},200,headers);
+     canEnroll:env.ENABLE_V16_ADMIN_ENROLL==='true'&&result.canEnroll===true},200,headers);
     if(adminEnroll)return json({ok:true,admin:result.admin===true,
      enrolledNow:result.created===true},200,headers);
     if(result.admin!==true)return json({error:'Admin enrollment required'},403,headers);
