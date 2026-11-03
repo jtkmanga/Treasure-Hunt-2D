@@ -247,7 +247,7 @@ export class V16WorldRoom {
      
     }
     if(req.method==='GET'&&new URL(req.url).pathname==='/protocol')
-     return json({ok:true,movementProtocol:'Sync V16.26',durableObjectCode:'v16-preview-batched-input-v2',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',journalIntegrity:'read-only-v1',durableJournalSupported:journalSupported(this.state.storage),pitrApiAvailable:typeof this.state.storage.getCurrentBookmark==='function'});
+     return json({ok:true,movementProtocol:'Sync V16.26',durableObjectCode:'v16-preview-batched-input-v2',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',journalIntegrity:'read-only-v1',adminEnrollment:'pinned-google-uid-v1',durableJournalSupported:journalSupported(this.state.storage),pitrApiAvailable:typeof this.state.storage.getCurrentBookmark==='function'});
    // One alarm per room at the next Bangkok season boundary.
    if(this.state.storage.getAlarm&&this.state.storage.setAlarm&&await this.state.storage.getAlarm()===null)
     await this.state.storage.setAlarm(Date.parse(periodFor(scope,Date.now()).resetsAt));
