@@ -81,7 +81,9 @@ export class AuthoritativeEventInput{
   const state=this._session(uid,serverNonce);
   if(parsed.seq===state.seq)return {...state.ack,duplicate:true};
   if(parsed.seq!==state.seq+1)throw Error('Out-of-order event');
-  if(state.seq>0&&now-state.at<EVENT_INPUT_MIN_GAP_MS)
+  const emergencyStop=parsed.type==='stop'&&
+   (state.axes[0]!==0||state.axes[1]!==0);
+  if(state.seq>0&&now-state.at<EVENT_INPUT_MIN_GAP_MS&&!emergencyStop)
    throw Error('Event rate limited');
   if(now<state.at)throw Error('Nonmonotonic server clock');
   // First validate packet & ordering; no state changes on rejected input.
