@@ -108,6 +108,9 @@ test('restore endpoint requires explicit POST, enabled flag and verified Admin',
  const publicRoute=await handleV16Request(new Request('https://example.test/api/v16/recovery-drill'),env);
  assert.equal(publicRoute.status,404,'no unauthenticated PITR route exists');
  env.ENABLE_V16_RECOVERY_DRILL='true';
+ const withoutAdminRead=await handleV16Request(new Request(endpoint,{method:'POST'}),env);
+ assert.equal(withoutAdminRead.status,403,'private read flag must also be active');
+ env.ENABLE_V16_ADMIN_READS='true';
  const wrongMethod=await handleV16Request(new Request(endpoint),env);
  assert.equal(wrongMethod.status,405);
  const missingFirebase=await handleV16Request(new Request(endpoint,{method:'POST'}),env);
