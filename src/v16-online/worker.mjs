@@ -10,6 +10,7 @@ import {GAME_PREVIEW_PAGE} from './game-preview-page.mjs';
 import {V16Room} from './room.mjs';
 import {periodFor} from './periods.mjs';
 import {journalSupported,persistGameState,readJournalPage,inspectJournalIntegrity,inspectRecoveryReadiness} from './durable-score-journal.mjs';
+import {runIsolatedPitrDrill,isolatedPitrDo} from './isolated-pitr-drill.mjs';
 const SCOPES={free:'free1',vip:'vip1',free1:'free1',vip1:'vip1'};
 // Dedicated isolated DO; pilot claims NEVER affect Free Server ranking or coins.
 const PILOT_ROOM='free1-coin-race-pilot-v1';
@@ -59,7 +60,16 @@ export async function handleV16Request(req,env,testing={}){
    ...headers,
   }});
  }
- if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',movementProtocol:'Sync V16.26',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',journalIntegrity:'read-only-v1',adminEnrollment:'pinned-google-uid-v1',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
+ // Synthetic-only recovery drill. OFF on ordinary Staging and Production.
+ // Its fixed DO name cannot collide with actual Free/VIP/pilot/preview/admin rooms.
+ if(url.pathname==='/api/v16/recovery-drill'){
+  if(req.method!=='GET')return json({error:'Method not allowed'},405,headers);
+  if(env.ENABLE_V16_RECOVERY_DRILL!=='true')
+   return json({error:'Recovery drill disabled'},403,headers);
+  const outcome=await runIsolatedPitrDrill(env);
+  return json(outcome.result,outcome.status,headers);
+ }
+ if(url.pathname==='/api/v16/health')return json({ok:true,phase:'staging-preview',map:'v16-forest-100',movementProtocol:'Sync V16.26',freeSeasonPreview:'free-season-v1',scoreAudit:'private-audit-v1',fullJournal:'sqlite-awards-v1',journalIntegrity:'read-only-v1',adminEnrollment:'pinned-google-uid-v1',isolatedRecoveryDrill:'synthetic-pitr-v1',readsEnabled:env.ENABLE_V16_READS==='true',writesEnabled:env.ENABLE_V16_WRITES==='true',pilotEnabled:env.ENABLE_V16_PILOT_WRITES==='true',gamePreviewEnabled:env.ENABLE_V16_GAME_PREVIEW==='true'},200,headers);
  // Staging-only read-only probe checks the *actual Durable Object code*.
  // The public Worker health marker alone cannot detect deferred DO upgrades.
  // A shared rate limit prevents this diagnostic from becoming an unbounded DO.
@@ -211,6 +221,8 @@ export class V16WorldRoom {
   }
  }
  async fetch(req){
+  if(new URL(req.url).pathname.startsWith('/pitr/'))
+   return isolatedPitrDo(req,this.state);
   const task=async()=>{
    const scope=req.headers.get('x-internal-scope');
    if(!['free1','vip1'].includes(scope))return json({error:'Invalid internal scope'},403);
