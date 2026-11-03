@@ -115,10 +115,21 @@ test('admin self-enrollment pins first signed Google UID and never grants other 
  assert.equal((await t.call('A','admin/status')).result.admin,true);
  t.env.ENABLE_V16_ADMIN_READS='true';
  assert.equal((await t.call('A','admin/audit')).status,200,'pinned Admin can read in authorized Staging');
+ // Turn OFF registration after the initial owner enrolls. Existing pinned
+ // identity must retain read-only access while new enrollments fail closed.
+ t.env.ENABLE_V16_ADMIN_ENROLL='false';
+ const statusAfterLock=await t.call('A','admin/status');
+ assert.equal(statusAfterLock.status,200,'owner can confirm existing role without enrollment');
+ assert.deepEqual(statusAfterLock.result,{ok:true,eligible:true,admin:true,canEnroll:false});
+ assert.equal((await t.call('A','admin/audit')).status,200,'turning enrollment off cannot revoke pinned Audit');
+ assert.equal((await t.call('A','admin/enroll',{})).status,403,'even owner cannot create a new enrollment');
+ assert.equal((await t.call('B','admin/enroll',{})).status,403);
+ assert.equal((await t.call('B','admin/audit')).status,403);
  assert.equal((await t.call('B','admin/audit')).status,403,'other accounts remain denied');
  // Even if an administrator later changes the allowlisted email, the old
  // enrolled Firebase UID cannot silently be replaced by a different UID.
  t.env.V16_ADMIN_EMAIL='bob@example.test';
+ assert.equal((await t.call('B','admin/status')).status,403,'new email cannot claim the stored role');
  assert.equal((await t.call('B','admin/enroll',{})).status,403,'admin ownership cannot be stolen');
  assert.equal((await t.call('B','admin/audit')).status,403);
  assert.equal((await t.call('A','admin/audit')).status,403,'changing email secret revokes old account');
